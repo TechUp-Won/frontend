@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+### 주의
 
-## Getting Started
+AI에게 코드 보고 알아서 UI만들어라 하는 식으로 개발하고 있습니다.
+딱히 코드 검토를 하지는 않았습니다.
 
-First, run the development server:
+### 특이사항
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- 판매자 회원가입 시, 사업자 번호는 아무거나 써도 됩니다.
+
+### SQL
+
 ```
+-- 제가 사용하는 카테고리 시드 데이터 (실제 카카오톡 선물하기쪽 카테고리와는 무관합니다.)
+-- depth 0: 최상위 카테고리 (10개)
+-- depth 1: 하위 카테고리 (47개)
+-- 총 57개 항목
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+INSERT INTO categories (id, name, depth, parent_category_id) OVERRIDING SYSTEM VALUE VALUES
+  -- depth 0
+  (1,  '식품/건강',    0, NULL),
+  (2,  '뷰티',        0, NULL),
+  (3,  '패션',        0, NULL),
+  (4,  '리빙/생활',   0, NULL),
+  (5,  '디지털/가전', 0, NULL),
+  (6,  '스포츠/레저', 0, NULL),
+  (7,  '취미/문화',   0, NULL),
+  (8,  '베이비/키즈', 0, NULL),
+  (9,  '반려동물',    0, NULL),
+  (10, '레스토랑/카페', 0, NULL),
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+  -- 식품/건강 (parent=1)
+  (11, '과일/채소',   1, 1),
+  (12, '정육/수산',   1, 1),
+  (13, '건강식품',    1, 1),
+  (14, '간식/음료',   1, 1),
+  (15, '커피/차',     1, 1),
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+  -- 뷰티 (parent=2)
+  (16, '스킨케어',    1, 2),
+  (17, '메이크업',    1, 2),
+  (18, '헤어케어',    1, 2),
+  (19, '향수/바디',   1, 2),
+  (20, '네일',        1, 2),
 
-## Learn More
+  -- 패션 (parent=3)
+  (21, '의류',            1, 3),
+  (22, '신발',            1, 3),
+  (23, '가방/지갑',       1, 3),
+  (24, '주얼리/액세서리', 1, 3),
+  (25, '시계',            1, 3),
 
-To learn more about Next.js, take a look at the following resources:
+  -- 리빙/생활 (parent=4)
+  (26, '주방용품',    1, 4),
+  (27, '침구/욕실',   1, 4),
+  (28, '인테리어소품', 1, 4),
+  (29, '청소/세탁',   1, 4),
+  (30, '조명',        1, 4),
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+  -- 디지털/가전 (parent=5)
+  (31, '스마트기기',      1, 5),
+  (32, '이어폰/스피커',   1, 5),
+  (33, '노트북/PC',       1, 5),
+  (34, '카메라',          1, 5),
+  (35, '생활가전',        1, 5),
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+  -- 스포츠/레저 (parent=6)
+  (36, '운동/헬스',   1, 6),
+  (37, '아웃도어',    1, 6),
+  (38, '수영/물놀이', 1, 6),
+  (39, '자전거',      1, 6),
+  (40, '캠핑',        1, 6),
 
-## Deploy on Vercel
+  -- 취미/문화 (parent=7)
+  (41, '도서',        1, 7),
+  (42, '문구/오피스', 1, 7),
+  (43, '공예/DIY',    1, 7),
+  (44, '게임',        1, 7),
+  (45, '음반/DVD',    1, 7),
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+  -- 베이비/키즈 (parent=8)
+  (46, '유아식품',    1, 8),
+  (47, '장난감',      1, 8),
+  (48, '유아의류',    1, 8),
+  (49, '도서/교육',   1, 8),
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+  -- 반려동물 (parent=9)
+  (50, '사료/간식',   1, 9),
+  (51, '용품/의류',   1, 9),
+  (52, '의료/건강',   1, 9),
+
+  -- 레스토랑/카페 (parent=10)
+  (53, '한식',        1, 10),
+  (54, '일식',        1, 10),
+  (55, '중식',        1, 10),
+  (56, '양식',        1, 10),
+  (57, '카페/디저트', 1, 10);
+
+-- IDENTITY 시퀀스를 삽입한 최대 ID 이후로 재설정
+SELECT setval(pg_get_serial_sequence('categories', 'id'), 57);
+```

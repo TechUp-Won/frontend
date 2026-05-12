@@ -1,8 +1,39 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light mode (Dracula Light) */
+  --background: #f8f8f2;
+  --foreground: #282a36;
+  
+  --drac-bg: #f8f8f2;
+  --drac-current: #e2e2dc;
+  --drac-fg: #282a36;
+  --drac-comment: #6272a4;
+  --drac-cyan: #06b6d4;
+  --drac-green: #22c55e;
+  --drac-orange: #ffb86c;
+  --drac-pink: #ec4899;
+  --drac-purple: #8b5cf6;
+  --drac-red: #ef4444;
+  --drac-yellow: #eab308;
+}
+
+.dark {
+  /* Dark mode (Dracula Dark) */
+  --background: #282a36;
+  --foreground: #f8f8f2;
+
+  --drac-bg: #282a36;
+  --drac-current: #44475a;
+  --drac-fg: #f8f8f2;
+  --drac-comment: #6272a4;
+  --drac-cyan: #8be9fd;
+  --drac-green: #50fa7b;
+  --drac-orange: #ffb86c;
+  --drac-pink: #ff79c6;
+  --drac-purple: #bd93f9;
+  --drac-red: #ff5555;
+  --drac-yellow: #f1fa8c;
 }
 
 @theme inline {
@@ -10,13 +41,18 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-drac-bg: var(--drac-bg);
+  --color-drac-current: var(--drac-current);
+  --color-drac-fg: var(--drac-fg);
+  --color-drac-comment: var(--drac-comment);
+  --color-drac-cyan: var(--drac-cyan);
+  --color-drac-green: var(--drac-green);
+  --color-drac-orange: var(--drac-orange);
+  --color-drac-pink: var(--drac-pink);
+  --color-drac-purple: var(--drac-purple);
+  --color-drac-red: var(--drac-red);
+  --color-drac-yellow: var(--drac-yellow);
 }
 
 body {
