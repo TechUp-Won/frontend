@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Star, ShoppingCart, Search, Heart, Flame, Sparkles, SlidersHorizontal, RefreshCcw, MessageCircle, Plus } from "lucide-react";
+import { Star, ShoppingCart, Search, Heart, Flame, Sparkles, SlidersHorizontal, RefreshCcw, MessageCircle, Plus, User } from "lucide-react";
 
 interface ProductSummary {
   id: number;
@@ -202,12 +202,12 @@ export default function Home() {
                     <span>상품 등록</span>
                   </Link>
                 )}
-                <span className="text-sm font-bold text-drac-fg hidden sm:flex items-center gap-1.5">
+                <Link href="/mypage" className="text-sm font-bold text-drac-fg hidden sm:flex items-center gap-1.5 hover:opacity-80 transition-opacity">
                   <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-tr from-drac-cyan/20 via-drac-purple/20 to-drac-pink/20 border border-drac-purple/40 text-drac-fg text-[11px] font-black tracking-widest uppercase shadow-[0_0_12px_rgba(189,147,249,0.3)] backdrop-blur-sm relative overflow-hidden">
                     {userInfo.role ? userInfo.role.replace('ROLE_', '') : 'USER'}
                   </span>
-                  <span><span className="text-drac-pink">{userInfo.profileName}</span>님 환영합니다</span>
-                </span>
+                  <span><span className="text-drac-pink underline decoration-drac-pink/30 underline-offset-4 hover:decoration-drac-pink transition-all">{userInfo.profileName}</span>님 환영합니다</span>
+                </Link>
                 <button onClick={handleLogout} className="text-sm font-bold text-drac-comment hover:text-red-500 transition-colors">
                   로그아웃
                 </button>
@@ -217,6 +217,10 @@ export default function Home() {
                 로그인
               </Link>
             )}
+            <Link href="/mypage" className="relative p-2 text-drac-fg hover:text-drac-pink transition-colors">
+              <User size={24} />
+            </Link>
+            
             <Link href="/chat" className="relative p-2 text-drac-fg hover:text-drac-pink transition-colors">
               <MessageCircle size={24} />
             </Link>
@@ -371,7 +375,15 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col flex-1 px-1">
-                  <span className="text-xs font-semibold text-drac-pink mb-1">
+                  <span 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (product.store?.storeId) {
+                        router.push(`/store/${product.store.storeId}?name=${encodeURIComponent(product.store.storeName)}`);
+                      }
+                    }}
+                    className="text-xs font-semibold text-drac-pink mb-1 hover:underline w-fit z-10 relative"
+                  >
                     {product.store?.storeName || '스토어 이름'}
                   </span>
                   <h3 className="text-sm sm:text-base font-semibold text-drac-fg line-clamp-2 mb-2 group-hover:text-drac-pink transition-colors">
@@ -396,9 +408,8 @@ export default function Home() {
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-drac-comment">
-                      <Star size={13} className="fill-drac-yellow text-drac-yellow" />
-                      <span className="font-bold text-drac-fg">4.9</span>
-                      <span className="text-drac-comment">({product.likeCount})</span>
+                      <Heart size={13} className="fill-drac-pink text-drac-pink" />
+                      <span className="font-bold text-drac-fg">{product.likeCount.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>

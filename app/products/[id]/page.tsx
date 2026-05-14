@@ -351,9 +351,9 @@ export default function ProductDetailPage() {
           <div className="w-full lg:w-1/2 flex flex-col py-4 lg:py-8">
             <div className="mb-6 border-b border-drac-current pb-6">
               <div className="flex justify-between items-start mb-3">
-                <span className="text-sm font-bold tracking-wider text-drac-pink uppercase bg-drac-current px-3 py-1 rounded-full">
+                <Link href={`/store/${product.store?.storeId || ''}?name=${encodeURIComponent(product.store?.storeName || '스토어 이름')}`} className="text-sm font-bold tracking-wider text-drac-pink uppercase bg-drac-current px-3 py-1 rounded-full hover:bg-drac-purple/20 transition-colors">
                   {product.store?.storeName || '스토어 이름'}
-                </span>
+                </Link>
                 <div className="flex gap-3">
                   <button className="w-10 h-10 rounded-full bg-drac-bg flex items-center justify-center hover:bg-drac-current hover:text-red-500 text-drac-comment transition-colors group">
                     <Heart size={20} className={product.isLiked ? "fill-red-500 text-red-500" : "group-hover:fill-red-500"} />
@@ -369,13 +369,10 @@ export default function ProductDetailPage() {
               </h1>
 
               <div className="flex items-center gap-4 mb-6">
-                <div className="flex items-center gap-1.5 bg-drac-current px-2.5 py-1 rounded-full border border-drac-comment">
-                  <Star size={14} className="fill-drac-yellow text-drac-yellow" />
-                  <span className="font-bold text-drac-fg text-sm">4.9</span>
+                <div className="flex items-center gap-1.5 bg-drac-current px-2.5 py-1 rounded-full border border-drac-comment text-drac-pink">
+                  <Heart size={14} className="fill-drac-pink" />
+                  <span className="font-bold text-drac-fg text-sm">{product.likeCount.toLocaleString()} Likes</span>
                 </div>
-                <span className="text-sm text-drac-comment font-medium">
-                  {product.likeCount.toLocaleString()} Likes
-                </span>
               </div>
 
               <div className="flex items-end gap-3">

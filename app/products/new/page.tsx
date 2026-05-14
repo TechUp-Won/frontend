@@ -21,6 +21,7 @@ import {
   Info,
   ChevronRight,
 } from "lucide-react";
+import RichTextEditor from "@/app/components/RichTextEditor";
 
 interface CategoryNode {
   id: number;
@@ -646,12 +647,13 @@ export default function NewProductPage() {
 
               {/* 상세 설명 */}
               <Field label="상세 설명">
-                <textarea
-                  value={detail}
-                  onChange={(e) => setDetail(e.target.value)}
-                  placeholder="상품의 소재, 특징, 사용법 등을 자유롭게 작성해주세요."
-                  className={inputCls + " h-28 resize-none"}
-                />
+                <div className="bg-drac-current border border-drac-comment/60 rounded-xl overflow-hidden focus-within:border-drac-pink focus-within:ring-2 focus-within:ring-drac-purple/10 transition-all text-drac-fg text-sm">
+                  <RichTextEditor
+                    value={detail}
+                    onChange={setDetail}
+                    placeholder="상품의 소재, 특징, 사용법 등을 자유롭게 작성해주세요."
+                  />
+                </div>
               </Field>
             </div>
           )}

@@ -322,12 +322,12 @@ export default function SignupPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-drac-fg ml-1">사업장명 (스토어 이름) *</label>
+                      <label className="text-sm font-bold text-drac-fg ml-1">사업장명 (법인/상호명) *</label>
                       <input 
                         type="text" 
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="스토어 이름 입력" 
+                        placeholder="사업자등록증 상의 상호명 입력" 
                         className="w-full px-4 py-3.5 bg-drac-current border border-drac-comment rounded-2xl outline-none focus:bg-drac-bg focus:border-drac-pink focus:ring-2 focus:ring-drac-purple/10 transition-all text-drac-fg"
                       />
                     </div>

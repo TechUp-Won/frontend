@@ -390,7 +390,11 @@ function SearchPageContent() {
               {stores.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {stores.map((store) => (
-                    <div key={store.storeId} className="bg-drac-bg border border-drac-current rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all cursor-pointer group">
+                    <div 
+                      key={store.storeId} 
+                      onClick={() => router.push(`/store/${store.storeId}?name=${encodeURIComponent(store.storeName)}`)}
+                      className="bg-drac-bg border border-drac-current rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all cursor-pointer group"
+                    >
                       <div className="relative w-16 h-16 rounded-full overflow-hidden bg-drac-current shrink-0">
                         <Image 
                           src={store.thumbnail || "https://placehold.co/100x100/eeeeee/999999.png?text=Store"} 
@@ -463,7 +467,15 @@ function SearchPageContent() {
                         </div>
 
                         <div className="flex flex-col flex-1 px-1">
-                          <span className="text-xs font-semibold text-drac-pink mb-1">
+                          <span 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (product.store?.storeId) {
+                                router.push(`/store/${product.store.storeId}?name=${encodeURIComponent(product.store.storeName)}`);
+                              }
+                            }}
+                            className="text-xs font-semibold text-drac-pink mb-1 hover:underline w-fit z-10 relative"
+                          >
                             {product.store?.storeName || '스토어 이름'}
                           </span>
                           <h3 className="text-sm sm:text-base font-semibold text-drac-fg line-clamp-2 mb-2 group-hover:text-drac-pink transition-colors">
@@ -488,9 +500,8 @@ function SearchPageContent() {
                               )}
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-drac-comment">
-                              <Star size={13} className="fill-drac-yellow text-drac-yellow" />
-                              <span className="font-bold text-drac-fg">4.9</span>
-                              <span className="text-drac-comment">({product.likeCount})</span>
+                              <Heart size={13} className="fill-drac-pink text-drac-pink" />
+                              <span className="font-bold text-drac-fg">{product.likeCount.toLocaleString()}</span>
                             </div>
                           </div>
                         </div>

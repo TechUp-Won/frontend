@@ -39,224 +39,10 @@ interface RoomInfo {
   roomTitle: string;
   roomType: "SINGLE" | "GROUP" | "ALARM";
   participantCount: number;
-  participants: { userId: number; nickname: string }[];
+  participants?: { userId: number; nickname: string }[];
 }
 
-// ── Mock Data ──────────────────────────────────────────────────
 const MY_USER_ID = 1;
-
-const MOCK_ROOM_MAP: Record<string, RoomInfo> = {
-  "1": {
-    chatRoomId: 1,
-    roomTitle: "김민수",
-    roomType: "SINGLE",
-    participantCount: 2,
-    participants: [
-      { userId: 1, nickname: "나" },
-      { userId: 2, nickname: "김민수" },
-    ],
-  },
-  "2": {
-    chatRoomId: 2,
-    roomTitle: "프로젝트 팀채팅",
-    roomType: "GROUP",
-    participantCount: 5,
-    participants: [
-      { userId: 1, nickname: "나" },
-      { userId: 2, nickname: "김민수" },
-      { userId: 3, nickname: "이서윤" },
-      { userId: 4, nickname: "박지훈" },
-      { userId: 5, nickname: "최유진" },
-    ],
-  },
-  "3": {
-    chatRoomId: 3,
-    roomTitle: "이서윤",
-    roomType: "SINGLE",
-    participantCount: 2,
-    participants: [
-      { userId: 1, nickname: "나" },
-      { userId: 3, nickname: "이서윤" },
-    ],
-  },
-};
-
-const MOCK_MESSAGES_MAP: Record<string, ChatMessageItem[]> = {
-  "1": [
-    {
-      messageId: 1,
-      senderId: 2,
-      senderName: "김민수",
-      content: "안녕하세요! 혹시 내일 시간 괜찮으세요?",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T09:00:00",
-    },
-    {
-      messageId: 2,
-      senderId: 1,
-      senderName: "나",
-      content: "안녕하세요! 네, 내일 오후면 괜찮아요 😊",
-      messageType: "TEXT",
-      likeCount: 1,
-      createdAt: "2026-05-11T09:02:00",
-    },
-    {
-      messageId: 3,
-      senderId: 2,
-      senderName: "김민수",
-      content: "그럼 오후 3시에 강남역에서 만나는 건 어떨까요?",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T09:05:00",
-    },
-    {
-      messageId: 4,
-      senderId: 1,
-      senderName: "나",
-      content: "좋아요! 강남역 어느 출구로 갈까요?",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T09:07:00",
-    },
-    {
-      messageId: 5,
-      senderId: 2,
-      senderName: "김민수",
-      content: "10번 출구 앞으로 올게요~",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T09:10:00",
-    },
-    {
-      messageId: 6,
-      senderId: 2,
-      senderName: "김민수",
-      content: "참, 자료는 미리 준비해서 가져갈게요",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T09:11:00",
-    },
-    {
-      messageId: 7,
-      senderId: 1,
-      senderName: "나",
-      content: "네 알겠습니다! 내일 오후 3시에 만나요 👋",
-      messageType: "TEXT",
-      likeCount: 2,
-      createdAt: "2026-05-11T10:32:00",
-      answerMessage: {
-        messageId: 5,
-        senderName: "김민수",
-        content: "10번 출구 앞으로 올게요~",
-      },
-    },
-  ],
-  "2": [
-    {
-      messageId: 1,
-      senderId: 3,
-      senderName: "이서윤",
-      content: "팀원분들 안녕하세요~ 이번 프로젝트 잘 부탁드립니다!",
-      messageType: "TEXT",
-      likeCount: 4,
-      createdAt: "2026-05-10T14:00:00",
-    },
-    {
-      messageId: 2,
-      senderId: 4,
-      senderName: "박지훈",
-      content: "반갑습니다! 저도 열심히 할게요 💪",
-      messageType: "TEXT",
-      likeCount: 3,
-      createdAt: "2026-05-10T14:05:00",
-    },
-    {
-      messageId: 3,
-      senderId: 1,
-      senderName: "나",
-      content: "네! 같이 좋은 결과물 만들어봐요 🔥",
-      messageType: "TEXT",
-      likeCount: 2,
-      createdAt: "2026-05-10T14:10:00",
-    },
-    {
-      messageId: 4,
-      senderId: 2,
-      senderName: "김민수",
-      content: "피그마 프로토타입 공유할게요",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T08:30:00",
-    },
-    {
-      messageId: 5,
-      senderId: 2,
-      senderName: "김민수",
-      content:
-        "https://figma.com/proto/example — 여기서 확인해주세요!",
-      messageType: "TEXT",
-      likeCount: 1,
-      createdAt: "2026-05-11T08:31:00",
-    },
-    {
-      messageId: 6,
-      senderId: 5,
-      senderName: "최유진",
-      content: "오 깔끔하네요! 컬러 팔레트 마음에 들어요 ✨",
-      messageType: "TEXT",
-      likeCount: 2,
-      createdAt: "2026-05-11T08:50:00",
-    },
-    {
-      messageId: 7,
-      senderId: 3,
-      senderName: "이서윤",
-      content: "디자인 시안 업로드했어요~ 확인 부탁드립니다",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T09:15:00",
-    },
-  ],
-  "3": [
-    {
-      messageId: 1,
-      senderId: 1,
-      senderName: "나",
-      content: "서윤님, 이전에 말씀하셨던 그 카페 이름이 뭐였죠?",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T08:30:00",
-    },
-    {
-      messageId: 2,
-      senderId: 3,
-      senderName: "이서윤",
-      content: "아! 블루보틀이요~ 성수점이 제일 좋아요 ☕",
-      messageType: "TEXT",
-      likeCount: 1,
-      createdAt: "2026-05-11T08:35:00",
-    },
-    {
-      messageId: 3,
-      senderId: 1,
-      senderName: "나",
-      content: "아 맞다! 감사해요 혹시 사진 있으시면 보내주실 수 있나요?",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T08:40:00",
-    },
-    {
-      messageId: 4,
-      senderId: 3,
-      senderName: "이서윤",
-      content: "사진 보내드릴게요 잠시만요!",
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: "2026-05-11T08:45:00",
-    },
-  ],
-};
 
 // ── Helpers ────────────────────────────────────────────────────
 function formatMessageTime(dateStr: string): string {
@@ -330,7 +116,24 @@ export default function ChatRoomPage() {
   const roomId = params.id as string;
   const [isAuthed, setIsAuthed] = useState(false);
 
-  // Auth guard
+  const [room, setRoom] = useState<RoomInfo>({
+    chatRoomId: Number(roomId),
+    roomTitle: "채팅방",
+    roomType: "SINGLE",
+    participantCount: 2,
+    participants: [],
+  });
+  const [messages, setMessages] = useState<ChatMessageItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [inputValue, setInputValue] = useState("");
+  const [replyTo, setReplyTo] = useState<ChatMessageItem | null>(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auth guard & Fetch Data
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
@@ -338,25 +141,59 @@ export default function ChatRoomPage() {
       return;
     }
     setIsAuthed(true);
-  }, [router]);
 
-  const room = MOCK_ROOM_MAP[roomId] || {
-    chatRoomId: Number(roomId),
-    roomTitle: "채팅방",
-    roomType: "SINGLE" as const,
-    participantCount: 2,
-    participants: [],
-  };
+    const fetchChatDetails = async () => {
+      try {
+        setLoading(true);
+        const [roomRes, msgRes] = await Promise.all([
+          fetch("/api/v1/chats", { headers: { "Authorization": `Bearer ${token}` } }),
+          fetch(`/api/v1/chats/${roomId}/messages?size=100`, { headers: { "Authorization": `Bearer ${token}` } })
+        ]);
 
-  const [messages, setMessages] = useState<ChatMessageItem[]>(
-    MOCK_MESSAGES_MAP[roomId] || []
-  );
-  const [inputValue, setInputValue] = useState("");
-  const [replyTo, setReplyTo] = useState<ChatMessageItem | null>(null);
-  const [showScrollDown, setShowScrollDown] = useState(false);
+        if (roomRes.ok) {
+          const json = await roomRes.json();
+          const rooms = json.data?.rooms || [];
+          const foundRoom = rooms.find((r: any) => r.chatRoomId === Number(roomId));
+          if (foundRoom) {
+            setRoom({
+              chatRoomId: foundRoom.chatRoomId,
+              roomTitle: foundRoom.roomTitle || "채팅방",
+              roomType: foundRoom.roomType,
+              participantCount: foundRoom.participantCount || 2,
+              participants: []
+            });
+          }
+        }
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+        if (msgRes.ok) {
+          const json = await msgRes.json();
+          const msgs = json.data?.messageList || [];
+          const converted = msgs.map((m: any) => ({
+            messageId: m.messageId,
+            senderId: m.senderId || MY_USER_ID,
+            senderName: m.nickname || (m.isMe ? "나" : "상대방"),
+            content: m.content,
+            messageType: m.messageType || "TEXT",
+            likeCount: 0,
+            createdAt: m.createdAt,
+            answerMessage: null,
+          }));
+          converted.sort((a: any, b: any) => a.messageId - b.messageId);
+          setMessages(converted);
+        }
+      } catch (err) {
+        console.error("Failed to load chat details", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChatDetails();
+    
+    // 단순한 폴링을 통해 새로운 메시지를 지속적으로 가져오는 로직 (임시 구현)
+    const intervalId = setInterval(fetchChatDetails, 5000);
+    return () => clearInterval(intervalId);
+  }, [roomId, router]);
 
   // Auto-scroll to bottom on mount and when new messages appear
   useEffect(() => {
@@ -374,33 +211,52 @@ export default function ChatRoomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSend = (e: FormEvent) => {
+  const handleSend = async (e: FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
-    const newMessage: ChatMessageItem = {
-      messageId: messages.length + 100,
-      senderId: MY_USER_ID,
-      senderName: "나",
-      content: inputValue.trim(),
-      messageType: "TEXT",
-      likeCount: 0,
-      createdAt: new Date().toISOString(),
-      answerMessage: replyTo
-        ? {
+    try {
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(`/api/v1/chats/${roomId}/messages`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          content: inputValue.trim(),
+          messageType: "TEXT",
+          answerMessageId: replyTo ? replyTo.messageId : null
+        })
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const newMessage: ChatMessageItem = {
+          messageId: json.data?.messageId || Date.now(),
+          senderId: MY_USER_ID,
+          senderName: "나",
+          content: inputValue.trim(),
+          messageType: "TEXT",
+          likeCount: 0,
+          createdAt: new Date().toISOString(),
+          answerMessage: replyTo ? {
             messageId: replyTo.messageId,
             senderName: replyTo.senderName,
-            content: replyTo.content,
-          }
-        : null,
-    };
+            content: replyTo.content
+          } : null
+        };
+        setMessages((prev) => [...prev, newMessage]);
+      }
+    } catch(err) {
+      console.error(err);
+    }
 
-    setMessages((prev) => [...prev, newMessage]);
     setInputValue("");
     setReplyTo(null);
   };
 
-  if (!isAuthed) {
+  if (!isAuthed || loading) {
     return (
       <div className="h-screen bg-drac-bg flex items-center justify-center">
         <div className="w-8 h-8 border-3 border-drac-purple border-t-transparent rounded-full animate-spin" />
@@ -464,6 +320,11 @@ export default function ChatRoomPage() {
         }}
       >
         <div className="max-w-2xl mx-auto space-y-0.5">
+          {messages.length === 0 && (
+            <div className="flex justify-center items-center h-32 text-drac-comment text-sm">
+              첫 메시지를 보내보세요.
+            </div>
+          )}
           {messages.map((msg, index) => {
             const isMe = msg.senderId === MY_USER_ID;
             const showDate = shouldShowDateDivider(messages, index);

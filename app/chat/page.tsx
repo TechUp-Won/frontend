@@ -32,42 +32,13 @@ interface ChatRoomItem {
 }
 
 interface FriendItem {
-  id: number;
-  userId: number;
-  nickname: string;
+  friendId: number;
+  targetId: number;
   name: string;
-  image: string | null;
   alias: string | null;
-  memo: string | null;
-  status: "ACTIVE" | "HIDDEN" | "BLOCK";
+  image: string | null;
   isFavorite: boolean;
-  phone: string;
-  gender: "MALE" | "FEMALE" | "NONE";
-  birthDate: string | null;
-  chatRoomId: number | null; // 이미 1:1 채팅방이 있으면 해당 ID
 }
-
-// ── Mock Data ──────────────────────────────────────────────────
-const MOCK_FRIENDS: FriendItem[] = [
-  { id: 1, userId: 2, nickname: "김민수", name: "김민수", image: null, alias: null, memo: "프론트엔드 개발자", status: "ACTIVE", isFavorite: true, phone: "010-1234-5678", gender: "MALE", birthDate: "1998-03-15", chatRoomId: 1 },
-  { id: 2, userId: 3, nickname: "이서윤", name: "이서윤", image: null, alias: "서윤이", memo: "디자이너", status: "ACTIVE", isFavorite: true, phone: "010-2345-6789", gender: "FEMALE", birthDate: "1999-07-22", chatRoomId: 3 },
-  { id: 3, userId: 4, nickname: "박지훈", name: "박지훈", image: null, alias: null, memo: null, status: "ACTIVE", isFavorite: false, phone: "010-3456-7890", gender: "MALE", birthDate: "1997-11-08", chatRoomId: null },
-  { id: 4, userId: 5, nickname: "최유진", name: "최유진", image: null, alias: "유진씨", memo: "백엔드 개발자", status: "ACTIVE", isFavorite: false, phone: "010-4567-8901", gender: "FEMALE", birthDate: "2000-01-30", chatRoomId: null },
-  { id: 5, userId: 6, nickname: "정하늘", name: "정하늘", image: null, alias: null, memo: "PM", status: "ACTIVE", isFavorite: false, phone: "010-5678-9012", gender: "NONE", birthDate: "1996-05-12", chatRoomId: null },
-  { id: 6, userId: 7, nickname: "한소희", name: "한소희", image: null, alias: "소희", memo: null, status: "ACTIVE", isFavorite: true, phone: "010-6789-0123", gender: "FEMALE", birthDate: "1999-09-03", chatRoomId: null },
-  { id: 7, userId: 8, nickname: "오동건", name: "오동건", image: null, alias: null, memo: "스터디 멤버", status: "ACTIVE", isFavorite: false, phone: "010-7890-1234", gender: "MALE", birthDate: "1998-12-25", chatRoomId: null },
-];
-
-const MOCK_ROOMS: ChatRoomItem[] = [
-  { chatRoomId: 1, roomType: "SINGLE", roomTitle: "김민수", roomImage: null, lastMessageContent: "네 알겠습니다! 내일 오후 3시에 만나요 👋", lastMessageAt: "2026-05-11T10:32:00", unreadCount: 3, participantCount: 2, isPinned: true },
-  { chatRoomId: 2, roomType: "GROUP", roomTitle: "프로젝트 팀채팅", roomImage: null, lastMessageContent: "디자인 시안 업로드했어요~ 확인 부탁드립니다", lastMessageAt: "2026-05-11T09:15:00", unreadCount: 12, participantCount: 5, isPinned: true },
-  { chatRoomId: 3, roomType: "SINGLE", roomTitle: "이서윤", roomImage: null, lastMessageContent: "사진 보내드릴게요 잠시만요!", lastMessageAt: "2026-05-11T08:45:00", unreadCount: 1, participantCount: 2 },
-  { chatRoomId: 4, roomType: "GROUP", roomTitle: "동아리 모임방", roomImage: null, lastMessageContent: "이번 주 토요일 정기모임 참석 가능하신 분?", lastMessageAt: "2026-05-10T22:10:00", unreadCount: 0, participantCount: 12 },
-  { chatRoomId: 5, roomType: "SINGLE", roomTitle: "박지훈", roomImage: null, lastMessageContent: "ㅋㅋㅋ 진짜요? 대박", lastMessageAt: "2026-05-10T18:30:00", unreadCount: 0, participantCount: 2 },
-  { chatRoomId: 6, roomType: "ALARM", roomTitle: "주문 알림", roomImage: null, lastMessageContent: "주문하신 상품이 배송을 시작했습니다.", lastMessageAt: "2026-05-10T14:20:00", unreadCount: 2, participantCount: 1 },
-  { chatRoomId: 7, roomType: "SINGLE", roomTitle: "최유진", roomImage: null, lastMessageContent: "감사합니다 :)", lastMessageAt: "2026-05-09T21:00:00", unreadCount: 0, participantCount: 2 },
-  { chatRoomId: 8, roomType: "GROUP", roomTitle: "개발 스터디", roomImage: null, lastMessageContent: "다음 주 발표 주제 정했나요?", lastMessageAt: "2026-05-09T16:45:00", unreadCount: 5, participantCount: 8 },
-];
 
 // ── Helpers ────────────────────────────────────────────────────
 function formatTime(dateStr: string | null): string {
@@ -100,7 +71,11 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFriend, setSelectedFriend] = useState<FriendItem | null>(null);
 
-  // Auth guard
+  const [friends, setFriends] = useState<FriendItem[]>([]);
+  const [rooms, setRooms] = useState<ChatRoomItem[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  // Auth guard & Data Fetch
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
@@ -108,34 +83,63 @@ export default function ChatPage() {
       return;
     }
     setIsAuthed(true);
+
+    const fetchData = async () => {
+      try {
+        setLoadingData(true);
+        const [friendsRes, chatsRes] = await Promise.all([
+          fetch("/api/v1/friends", {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          fetch("/api/v1/chats", {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        ]);
+
+        if (friendsRes.ok) {
+          const fJson = await friendsRes.json();
+          setFriends(fJson.data?.friends || []);
+        }
+
+        if (chatsRes.ok) {
+          const cJson = await chatsRes.json();
+          setRooms(cJson.data?.rooms || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch friends or chats", err);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchData();
   }, [router]);
 
   // Friends filtering
   const filteredFriends = useMemo(() => {
-    const active = MOCK_FRIENDS.filter((f) => f.status === "ACTIVE");
-    if (!searchQuery.trim()) return active;
+    if (!searchQuery.trim()) return friends;
     const q = searchQuery.toLowerCase();
-    return active.filter((f) => f.nickname.toLowerCase().includes(q) || f.alias?.toLowerCase().includes(q) || f.name.toLowerCase().includes(q));
-  }, [searchQuery]);
+    return friends.filter((f) => f.name?.toLowerCase().includes(q) || f.alias?.toLowerCase().includes(q));
+  }, [searchQuery, friends]);
 
   const favoriteFriends = filteredFriends.filter((f) => f.isFavorite);
   const normalFriends = filteredFriends.filter((f) => !f.isFavorite);
 
   // Chat rooms filtering & sorting
   const sortedRooms = useMemo(() => {
-    let rooms = MOCK_ROOMS;
+    let currentRooms = rooms;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      rooms = rooms.filter((r) => r.roomTitle.toLowerCase().includes(q) || r.lastMessageContent?.toLowerCase().includes(q));
+      currentRooms = currentRooms.filter((r) => r.roomTitle?.toLowerCase().includes(q) || r.lastMessageContent?.toLowerCase().includes(q));
     }
-    const pinned = rooms.filter((r) => r.isPinned);
-    const unpinned = rooms.filter((r) => !r.isPinned);
+    const pinned = currentRooms.filter((r) => r.isPinned);
+    const unpinned = currentRooms.filter((r) => !r.isPinned);
     return [...pinned, ...unpinned];
-  }, [searchQuery]);
+  }, [searchQuery, rooms]);
 
-  const totalUnread = MOCK_ROOMS.reduce((s, r) => s + r.unreadCount, 0);
+  const totalUnread = rooms.reduce((s, r) => s + (r.unreadCount || 0), 0);
 
-  if (!isAuthed) {
+  if (!isAuthed || loadingData) {
     return (
       <div className="min-h-screen bg-drac-bg flex items-center justify-center">
         <div className="w-8 h-8 border-3 border-drac-purple border-t-transparent rounded-full animate-spin" />
@@ -174,7 +178,7 @@ export default function ChatPage() {
           >
             <Users size={16} />
             친구
-            <span className="text-[11px] text-drac-comment font-medium">{MOCK_FRIENDS.filter(f => f.status === "ACTIVE").length}</span>
+            <span className="text-[11px] text-drac-comment font-medium">{friends.length}</span>
           </button>
           <button
             onClick={() => { setTab("chats"); setSearchQuery(""); }}
@@ -241,7 +245,7 @@ export default function ChatPage() {
                   </div>
                   <ul>
                     {favoriteFriends.map((f) => (
-                      <FriendRow key={f.id} friend={f} onSelect={setSelectedFriend} />
+                      <FriendRow key={f.friendId} friend={f} onSelect={setSelectedFriend} />
                     ))}
                   </ul>
                 </div>
@@ -256,7 +260,7 @@ export default function ChatPage() {
                 </div>
                 <ul>
                   {normalFriends.map((f) => (
-                    <FriendRow key={f.id} friend={f} onSelect={setSelectedFriend} />
+                    <FriendRow key={f.friendId} friend={f} onSelect={setSelectedFriend} />
                   ))}
                 </ul>
               </div>
@@ -325,50 +329,54 @@ export default function ChatPage() {
 
             {/* Avatar */}
             <div className="flex justify-center -mt-12">
-              <div className={`w-24 h-24 rounded-full bg-gradient-to-tr ${getGradient(selectedFriend.userId)} flex items-center justify-center text-white text-3xl font-bold shadow-lg border-4 border-drac-bg`}>
-                {selectedFriend.nickname.charAt(0)}
+              <div className={`w-24 h-24 rounded-full bg-gradient-to-tr ${getGradient(selectedFriend.targetId)} flex items-center justify-center text-white text-3xl font-bold shadow-lg border-4 border-drac-bg`}>
+                {(selectedFriend.alias || selectedFriend.name).charAt(0)}
               </div>
             </div>
 
             {/* Info */}
             <div className="text-center px-6 pt-3 pb-2">
-              <h2 className="text-xl font-bold text-drac-fg">{selectedFriend.nickname}</h2>
+              <h2 className="text-xl font-bold text-drac-fg">{selectedFriend.alias || selectedFriend.name}</h2>
               {selectedFriend.alias && (
-                <p className="text-sm text-drac-comment mt-0.5">별명: {selectedFriend.alias}</p>
-              )}
-              {selectedFriend.memo && (
-                <p className="text-sm text-drac-pink mt-1 italic">&quot;{selectedFriend.memo}&quot;</p>
-              )}
-            </div>
-
-            {/* Details */}
-            <div className="mx-6 mt-2 mb-4 bg-drac-current rounded-2xl p-4 space-y-2.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-drac-comment">이름</span>
-                <span className="text-drac-fg font-medium">{selectedFriend.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-drac-comment">전화번호</span>
-                <span className="text-drac-fg font-medium">{selectedFriend.phone}</span>
-              </div>
-              {selectedFriend.birthDate && (
-                <div className="flex justify-between">
-                  <span className="text-drac-comment">생일</span>
-                  <span className="text-drac-fg font-medium">{selectedFriend.birthDate}</span>
-                </div>
+                <p className="text-sm text-drac-comment mt-0.5">이름: {selectedFriend.name}</p>
               )}
             </div>
 
             {/* Action Buttons */}
-            <div className="px-6 pb-6 pt-1 flex gap-3">
+            <div className="px-6 pb-6 pt-4 flex gap-3">
               <button
-                onClick={() => {
-                  setSelectedFriend(null);
-                  if (selectedFriend.chatRoomId) {
-                    router.push(`/chat/${selectedFriend.chatRoomId}`);
-                  } else {
-                    // 새 채팅방 생성 후 이동 (임시로 userId 기반)
-                    router.push(`/chat/${selectedFriend.userId}`);
+                onClick={async () => {
+                  // 채팅방 생성 요청
+                  try {
+                    const token = localStorage.getItem("accessToken");
+                    const res = await fetch("/api/v1/chats", {
+                      method: "POST",
+                      headers: { 
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                      },
+                      body: JSON.stringify({ 
+                        participantIds: [selectedFriend.targetId], 
+                        roomType: "SINGLE" 
+                      })
+                    });
+                    
+                    if (res.ok) {
+                      const json = await res.json();
+                      const chatRoomId = json.data?.chatRoomId || json.data?.id;
+                      if (chatRoomId) {
+                        router.push(`/chat/${chatRoomId}`);
+                      } else {
+                        // fallback
+                        router.push(`/chat/${selectedFriend.targetId}`);
+                      }
+                    } else {
+                      alert("채팅방을 생성할 수 없습니다.");
+                    }
+                  } catch (e) {
+                    console.error(e);
+                  } finally {
+                    setSelectedFriend(null);
                   }
                 }}
                 className="flex-1 py-3.5 bg-drac-purple text-white font-bold rounded-2xl hover:bg-drac-purple/80 transition-colors shadow-md shadow-drac-purple/20 flex items-center justify-center gap-2 text-sm"
@@ -399,16 +407,13 @@ function FriendRow({ friend, onSelect }: { friend: FriendItem; onSelect: (f: Fri
         onClick={() => onSelect(friend)}
         className="w-full flex items-center gap-3.5 px-4 sm:px-6 py-2.5 hover:bg-drac-current/40 active:bg-drac-current/60 transition-colors text-left"
       >
-        <div className={`w-11 h-11 rounded-full bg-gradient-to-tr ${getGradient(friend.userId)} flex items-center justify-center text-white text-sm font-bold shadow-md shrink-0`}>
-          {friend.nickname.charAt(0)}
+        <div className={`w-11 h-11 rounded-full bg-gradient-to-tr ${getGradient(friend.targetId)} flex items-center justify-center text-white text-sm font-bold shadow-md shrink-0`}>
+          {(friend.alias || friend.name).charAt(0)}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-[14px] text-drac-fg truncate">
-            {friend.alias || friend.nickname}
+            {friend.alias || friend.name}
           </p>
-          {friend.memo && (
-            <p className="text-xs text-drac-comment truncate mt-0.5">{friend.memo}</p>
-          )}
         </div>
         {friend.isFavorite && (
           <Star size={14} className="fill-drac-yellow text-drac-yellow shrink-0" />
