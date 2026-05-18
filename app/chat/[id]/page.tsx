@@ -1,8 +1,10 @@
 "use client";
 
 import ThemeToggle from "@/app/components/ThemeToggle";
-import { useState, useRef, useEffect, FormEvent } from "react";
+import { apiFetch } from "@/app/lib/apiFetch";
+import { useState, useRef, useEffect, useCallback, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { Client } from "@stomp/stompjs";
 import {
   ArrowLeft,
   Send,
@@ -22,6 +24,7 @@ import {
 interface ChatMessageItem {
   messageId: number;
   senderId: number;
+  isMe: boolean;
   senderName: string;
   content: string;
   messageType: "TEXT" | "IMAGE" | "GIFT" | "ALARM";
@@ -42,7 +45,7 @@ interface RoomInfo {
   participants?: { userId: number; nickname: string }[];
 }
 
-const MY_USER_ID = 1;
+// myUserId는 런타임에 localStorage에서 읽어옴 (아래 컴포넌트 state 참고)
 
 // ── Helpers ────────────────────────────────────────────────────
 function formatMessageTime(dateStr: string): string {
@@ -85,21 +88,14 @@ function shouldShowDateDivider(
   return curr !== prev;
 }
 
-function shouldShowAvatar(
-  messages: ChatMessageItem[],
-  index: number
-): boolean {
+function shouldShowAvatar(messages: ChatMessageItem[], index: number): boolean {
   const msg = messages[index];
-  if (msg.senderId === MY_USER_ID) return false;
+  if (msg.isMe) return false;
   if (index === 0) return true;
-  const prev = messages[index - 1];
-  return prev.senderId !== msg.senderId;
+  return messages[index - 1].senderId !== msg.senderId;
 }
 
-function shouldShowTime(
-  messages: ChatMessageItem[],
-  index: number
-): boolean {
+function shouldShowTime(messages: ChatMessageItem[], index: number): boolean {
   const msg = messages[index];
   if (index === messages.length - 1) return true;
   const next = messages[index + 1];
@@ -132,8 +128,50 @@ export default function ChatRoomPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const stompClientRef = useRef<Client | null>(null);
+  const myUserIdRef = useRef<number>(0);
+  // 낙관적 메시지의 tempId → 실제 messageId 교체용
+  const pendingTempIdRef = useRef<number | null>(null);
 
-  // Auth guard & Fetch Data
+  const parseMessage = useCallback((m: any): ChatMessageItem => ({
+    messageId: m.messageId,
+    senderId: m.senderId ?? 0,
+    isMe: m.isMe ?? false,
+    senderName: m.nickname ?? m.senderName ?? "알 수 없음",
+    content: m.content ?? "",
+    messageType: m.messageType ?? "TEXT",
+    likeCount: m.likeCount ?? 0,
+    createdAt: m.createdAt ?? new Date().toISOString(),
+    answerMessage: m.answerMessage ?? null,
+  }), []);
+
+  // REST로 최신 메시지를 가져와 기존 목록에 병합 (중복 제외)
+  const fetchAndMergeLatest = useCallback(async (knownIds: Set<number>) => {
+    try {
+      const res = await apiFetch(`/api/v1/chats/${roomId}/messages?size=20`);
+      if (!res.ok) return;
+      const json = await res.json();
+      // 백엔드는 DESC 순서로 반환 → ASC로 뒤집음
+      const fetched: ChatMessageItem[] = [...(json.data?.messageList ?? [])]
+        .reverse()
+        .map(parseMessage);
+      const toAdd = fetched.filter((m) => !knownIds.has(m.messageId));
+      if (toAdd.length > 0) {
+        setMessages((prev) => {
+          const existingIds = new Set(prev.filter(m => m.messageId > 0).map(m => m.messageId));
+          const reallyNew = toAdd.filter(m => !existingIds.has(m.messageId));
+          if (reallyNew.length === 0) return prev;
+          // 낙관적 메시지(tempId < 0)는 유지, 실제 ID로 정렬
+          const withoutTemp = prev.filter(m => m.messageId > 0);
+          return [...withoutTemp, ...reallyNew].sort((a, b) => a.messageId - b.messageId);
+        });
+      }
+    } catch (e) {
+      console.error("fetchAndMergeLatest error", e);
+    }
+  }, [roomId, parseMessage]);
+
+  // Auth guard & 초기 데이터 로드
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
@@ -142,44 +180,37 @@ export default function ChatRoomPage() {
     }
     setIsAuthed(true);
 
-    const fetchChatDetails = async () => {
+    const userInfoRaw = localStorage.getItem("userInfo");
+    myUserIdRef.current = userInfoRaw ? (JSON.parse(userInfoRaw).authId ?? 0) : 0;
+
+    const fetchInitialData = async () => {
       try {
         setLoading(true);
         const [roomRes, msgRes] = await Promise.all([
-          fetch("/api/v1/chats", { headers: { "Authorization": `Bearer ${token}` } }),
-          fetch(`/api/v1/chats/${roomId}/messages?size=100`, { headers: { "Authorization": `Bearer ${token}` } })
+          apiFetch("/api/v1/chats"),
+          apiFetch(`/api/v1/chats/${roomId}/messages?size=100`),
         ]);
 
         if (roomRes.ok) {
           const json = await roomRes.json();
-          const rooms = json.data?.rooms || [];
-          const foundRoom = rooms.find((r: any) => r.chatRoomId === Number(roomId));
-          if (foundRoom) {
+          const rooms = json.data?.rooms ?? [];
+          const found = rooms.find((r: any) => r.chatRoomId === Number(roomId));
+          if (found) {
             setRoom({
-              chatRoomId: foundRoom.chatRoomId,
-              roomTitle: foundRoom.roomTitle || "채팅방",
-              roomType: foundRoom.roomType,
-              participantCount: foundRoom.participantCount || 2,
-              participants: []
+              chatRoomId: found.chatRoomId,
+              roomTitle: found.roomTitle ?? "채팅방",
+              roomType: found.roomType,
+              participantCount: found.participantCount ?? 2,
+              participants: [],
             });
           }
         }
 
         if (msgRes.ok) {
           const json = await msgRes.json();
-          const msgs = json.data?.messageList || [];
-          const converted = msgs.map((m: any) => ({
-            messageId: m.messageId,
-            senderId: m.senderId || MY_USER_ID,
-            senderName: m.nickname || (m.isMe ? "나" : "상대방"),
-            content: m.content,
-            messageType: m.messageType || "TEXT",
-            likeCount: 0,
-            createdAt: m.createdAt,
-            answerMessage: null,
-          }));
-          converted.sort((a: any, b: any) => a.messageId - b.messageId);
-          setMessages(converted);
+          // 백엔드가 DESC로 반환 → ASC 정렬
+          const msgs = [...(json.data?.messageList ?? [])].reverse().map(parseMessage);
+          setMessages(msgs);
         }
       } catch (err) {
         console.error("Failed to load chat details", err);
@@ -188,12 +219,59 @@ export default function ChatRoomPage() {
       }
     };
 
-    fetchChatDetails();
-    
-    // 단순한 폴링을 통해 새로운 메시지를 지속적으로 가져오는 로직 (임시 구현)
-    const intervalId = setInterval(fetchChatDetails, 5000);
-    return () => clearInterval(intervalId);
-  }, [roomId, router]);
+    fetchInitialData();
+  }, [roomId, router, parseMessage]);
+
+  // STOMP WebSocket 연결
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    if (!token || !roomId) return;
+
+    const client = new Client({
+      brokerURL: "ws://localhost:8080/ws",
+      connectHeaders: { Authorization: `Bearer ${token}` },
+      reconnectDelay: 5000,
+      onConnect: () => {
+        client.subscribe(`/sub/chat/room/${roomId}`, (frame) => {
+          try {
+            const data = JSON.parse(frame.body);
+            const incomingId: number = data.messageId;
+
+            setMessages((prev) => {
+              const knownIds = new Set(prev.filter(m => m.messageId > 0).map(m => m.messageId));
+
+              if (knownIds.has(incomingId)) {
+                // 이미 아는 메시지 → 낙관적 tempId 교체만
+                const tempId = pendingTempIdRef.current;
+                if (tempId !== null) {
+                  pendingTempIdRef.current = null;
+                  return prev.map(m => m.messageId === tempId ? { ...m, messageId: incomingId } : m);
+                }
+                return prev;
+              }
+
+              // 모르는 messageId → REST로 전체 fetch (비동기, setState 밖에서)
+              fetchAndMergeLatest(knownIds);
+              return prev;
+            });
+          } catch (e) {
+            console.error("STOMP message parse error", e);
+          }
+        });
+      },
+      onStompError: (frame) => {
+        console.error("STOMP error", frame.headers["message"]);
+      },
+    });
+
+    client.activate();
+    stompClientRef.current = client;
+
+    return () => {
+      client.deactivate();
+      stompClientRef.current = null;
+    };
+  }, [roomId, fetchAndMergeLatest]);
 
   // Auto-scroll to bottom on mount and when new messages appear
   useEffect(() => {
@@ -215,45 +293,62 @@ export default function ChatRoomPage() {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
+    const content = inputValue.trim();
+    const currentReplyTo = replyTo;
+    setInputValue("");
+    setReplyTo(null);
+
+    // 낙관적 업데이트: 즉시 화면에 표시 (tempId는 음수)
+    const tempId = -Date.now();
+    const userInfoRaw = localStorage.getItem("userInfo");
+    const nickname = userInfoRaw ? (JSON.parse(userInfoRaw).nickname ?? "나") : "나";
+    const optimistic: ChatMessageItem = {
+      messageId: tempId,
+      senderId: myUserIdRef.current,
+      isMe: true,
+      senderName: nickname,
+      content,
+      messageType: "TEXT",
+      likeCount: 0,
+      createdAt: new Date().toISOString(),
+      answerMessage: currentReplyTo
+        ? { messageId: currentReplyTo.messageId, senderName: currentReplyTo.senderName, content: currentReplyTo.content }
+        : null,
+    };
+    pendingTempIdRef.current = tempId;
+    setMessages((prev) => [...prev, optimistic]);
+
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`/api/v1/chats/${roomId}/messages`, {
+      const res = await apiFetch(`/api/v1/chats/${roomId}/messages`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: inputValue.trim(),
+          content,
           messageType: "TEXT",
-          answerMessageId: replyTo ? replyTo.messageId : null
-        })
+          answerMessageId: currentReplyTo ? currentReplyTo.messageId : null,
+        }),
       });
 
       if (res.ok) {
         const json = await res.json();
-        const newMessage: ChatMessageItem = {
-          messageId: json.data?.messageId || Date.now(),
-          senderId: MY_USER_ID,
-          senderName: "나",
-          content: inputValue.trim(),
-          messageType: "TEXT",
-          likeCount: 0,
-          createdAt: new Date().toISOString(),
-          answerMessage: replyTo ? {
-            messageId: replyTo.messageId,
-            senderName: replyTo.senderName,
-            content: replyTo.content
-          } : null
-        };
-        setMessages((prev) => [...prev, newMessage]);
+        const realId: number = json.data?.messageId;
+        if (realId) {
+          // REST 응답으로 tempId를 실제 ID로 교체 (STOMP가 늦게 오는 경우 대비)
+          pendingTempIdRef.current = null;
+          setMessages((prev) =>
+            prev.map((m) => (m.messageId === tempId ? { ...m, messageId: realId } : m))
+          );
+        }
+      } else {
+        // 전송 실패 시 낙관적 메시지 제거
+        pendingTempIdRef.current = null;
+        setMessages((prev) => prev.filter((m) => m.messageId !== tempId));
       }
-    } catch(err) {
+    } catch (err) {
       console.error(err);
+      pendingTempIdRef.current = null;
+      setMessages((prev) => prev.filter((m) => m.messageId !== tempId));
     }
-
-    setInputValue("");
-    setReplyTo(null);
   };
 
   if (!isAuthed || loading) {
@@ -326,7 +421,7 @@ export default function ChatRoomPage() {
             </div>
           )}
           {messages.map((msg, index) => {
-            const isMe = msg.senderId === MY_USER_ID;
+            const isMe = msg.isMe;
             const showDate = shouldShowDateDivider(messages, index);
             const showAvatar = shouldShowAvatar(messages, index);
             const showTime = shouldShowTime(messages, index);

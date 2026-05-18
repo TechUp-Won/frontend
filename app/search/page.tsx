@@ -1,11 +1,12 @@
 "use client";
 
 import ThemeToggle from "@/app/components/ThemeToggle";
+import { apiFetch } from "@/app/lib/apiFetch";
 import { useEffect, useState, useCallback, FormEvent, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, ShoppingCart, ArrowLeft, Sparkles, Store, SlidersHorizontal, RefreshCcw, Heart, Star, Plus } from "lucide-react";
+import { Search, ShoppingCart, ArrowLeft, Sparkles, Store, RefreshCcw, Heart, Star, Plus } from "lucide-react";
 
 interface CategoryNode {
   id: number;
@@ -47,10 +48,9 @@ interface SearchResponse {
 function SearchPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const keywordParam = searchParams.get("keyword") || "";
+  const keyword = searchParams.get("keyword") || "";
 
-  const [keyword, setKeyword] = useState(keywordParam);
-  const [searchInput, setSearchInput] = useState(keywordParam);
+  const [searchInput, setSearchInput] = useState(keyword);
 
   // Auth state
   const [userInfo, setUserInfo] = useState<{ profileName: string, role: string } | null>(null);
@@ -64,15 +64,20 @@ function SearchPageContent() {
 
   // Categories from API
   const [categories, setCategories] = useState<CategoryNode[]>([]);
-  
+
   const [stores, setStores] = useState<StoreResult[]>([]);
   const [products, setProducts] = useState<ProductResult[]>([]);
   const [hasNext, setHasNext] = useState(false);
   const [nextCursorId, setNextCursorId] = useState<number | null>(null);
   const [nextCursorSortValue, setNextCursorSortValue] = useState<number | null>(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // keyword가 URL에서 바뀔 때 입력창 동기화
+  useEffect(() => {
+    setSearchInput(keyword);
+  }, [keyword]);
 
   const fetchSearchResults = useCallback(async (isLoadMore = false, cursorId?: number | null, cursorSortVal?: number | null) => {
     if (!keyword) {
@@ -90,13 +95,13 @@ function SearchPageContent() {
       const params = new URLSearchParams();
       params.append("keyword", keyword);
       params.append("size", "8");
-      
+
       const activeCategoryId = subCategory || mainCategory;
       if (activeCategoryId) params.append("categoryId", activeCategoryId);
       if (minPrice) params.append("minPrice", minPrice);
       if (maxPrice) params.append("maxPrice", maxPrice);
       if (sort) params.append("sort", sort);
-      
+
       if (isLoadMore && cursorId) params.append("lastId", String(cursorId));
       if (isLoadMore && cursorSortVal !== undefined && cursorSortVal !== null) {
         params.append("lastSortValue", String(cursorSortVal));
@@ -106,7 +111,7 @@ function SearchPageContent() {
       if (res.ok) {
         const json = await res.json();
         const data: SearchResponse = json.data;
-        
+
         if (data) {
           if (isLoadMore) {
             setProducts(prev => [...prev, ...(data.products || [])]);
@@ -141,23 +146,7 @@ function SearchPageContent() {
     }
   }, [keyword, mainCategory, subCategory, minPrice, maxPrice, sort]);
 
-  useEffect(() => {
-    if (keywordParam !== keyword) {
-      setKeyword(keywordParam);
-      setSearchInput(keywordParam);
-    }
-  }, [keywordParam]);
-
-  const fetchCategories = async () => {
-    try {
-      const res = await fetch("/api/v1/products/categories");
-      if (res.ok) {
-        const json = await res.json();
-        if (json.data) setCategories(json.data);
-      }
-    } catch (err) { console.error("Failed to fetch categories", err); }
-  };
-
+  // 마운트 시 한 번만 실행
   useEffect(() => {
     const storedUser = localStorage.getItem("userInfo");
     if (storedUser) {
@@ -167,19 +156,26 @@ function SearchPageContent() {
         console.error("Failed to parse user info", e);
       }
     }
-    fetchCategories();
+    fetch("/api/v1/products/categories")
+      .then(res => res.ok ? res.json() : null)
+      .then(json => { if (json?.data) setCategories(json.data); })
+      .catch(err => console.error("Failed to fetch categories", err));
+  }, []);
+
+  // keyword가 바뀔 때만 검색 실행
+  useEffect(() => {
     fetchSearchResults(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyword]);
+  }, [keyword]); // filters는 "필터 적용" 버튼으로만 트리거
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/v1/auth/logout", { method: "POST" });
+      await apiFetch("/api/v1/auth/logout", { method: "POST" });
     } catch (e) {
       console.error(e);
     } finally {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("userInfo");
+      localStorage.removeItem("tokenExpiresAt");
       setUserInfo(null);
     }
   };
@@ -294,44 +290,83 @@ function SearchPageContent() {
           <div className="flex flex-col gap-12">
             
             {/* Filters Section */}
-            <form onSubmit={handleApplyFilters} className="bg-drac-bg rounded-2xl p-5 shadow-sm border border-drac-current flex flex-col lg:flex-row gap-5 items-end">
-              <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-drac-comment tracking-wider flex items-center gap-1.5">
-                    <SlidersHorizontal size={12} /> 카테고리
-                  </label>
-                  <div className="flex gap-2">
-                    <select 
-                      value={mainCategory} 
-                      onChange={(e) => {
-                        setMainCategory(e.target.value);
-                        setSubCategory("");
+            <form onSubmit={handleApplyFilters} className="bg-drac-bg rounded-2xl p-5 shadow-sm border border-drac-current flex flex-col gap-5">
+              {/* Category Pill Tabs */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-drac-comment tracking-wider">카테고리</label>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  <button
+                    type="button"
+                    onClick={() => { setMainCategory(""); setSubCategory(""); }}
+                    className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all border ${
+                      !mainCategory
+                        ? "bg-drac-purple text-drac-bg border-drac-purple shadow-md shadow-drac-purple/30"
+                        : "bg-drac-current text-drac-comment border-drac-current hover:border-drac-pink hover:text-drac-fg"
+                    }`}
+                  >
+                    전체
+                  </button>
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        if (mainCategory === String(cat.id)) {
+                          setMainCategory("");
+                          setSubCategory("");
+                        } else {
+                          setMainCategory(String(cat.id));
+                          setSubCategory("");
+                        }
                       }}
-                      className="w-full bg-drac-current border border-drac-comment text-drac-fg text-sm rounded-xl focus:ring-2 focus:ring-drac-purple/10 focus:border-drac-pink block p-3 outline-none transition-all cursor-pointer hover:border-drac-pink"
+                      className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all border ${
+                        mainCategory === String(cat.id)
+                          ? "bg-drac-purple text-drac-bg border-drac-purple shadow-md shadow-drac-purple/30"
+                          : "bg-drac-current text-drac-comment border-drac-current hover:border-drac-pink hover:text-drac-fg"
+                      }`}
                     >
-                      <option value="">대분류 전체</option>
-                      {categories.map((cat) => (
-                        <option key={cat.id} value={String(cat.id)}>{cat.name}</option>
-                      ))}
-                    </select>
-                    <select 
-                      value={subCategory} 
-                      onChange={(e) => setSubCategory(e.target.value)}
-                      disabled={!mainCategory}
-                      className="w-full bg-drac-current border border-drac-comment text-drac-fg text-sm rounded-xl focus:ring-2 focus:ring-drac-purple/10 focus:border-drac-pink block p-3 outline-none transition-all cursor-pointer hover:border-drac-pink disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="">(전체)</option>
-                      {categories.find(c => String(c.id) === mainCategory)?.children.map(sub => (
-                        <option key={sub.id} value={String(sub.id)}>{sub.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                      {cat.name}
+                    </button>
+                  ))}
                 </div>
-                
+
+                {mainCategory && (categories.find(c => String(c.id) === mainCategory)?.children?.length ?? 0) > 0 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    <button
+                      type="button"
+                      onClick={() => setSubCategory("")}
+                      className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                        !subCategory
+                          ? "bg-drac-cyan/20 text-drac-cyan border-drac-cyan/50"
+                          : "bg-drac-current text-drac-comment border-drac-current hover:border-drac-cyan/50 hover:text-drac-cyan"
+                      }`}
+                    >
+                      전체
+                    </button>
+                    {categories.find(c => String(c.id) === mainCategory)?.children.map((sub) => (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => setSubCategory(String(sub.id))}
+                        className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                          subCategory === String(sub.id)
+                            ? "bg-drac-cyan/20 text-drac-cyan border-drac-cyan/50"
+                            : "bg-drac-current text-drac-comment border-drac-current hover:border-drac-cyan/50 hover:text-drac-cyan"
+                        }`}
+                      >
+                        {sub.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-5 items-end">
+              <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-drac-comment tracking-wider">정렬 기준</label>
-                  <select 
-                    value={sort} 
+                  <select
+                    value={sort}
                     onChange={(e) => setSort(e.target.value)}
                     className="w-full bg-drac-current border border-drac-comment text-drac-fg text-sm rounded-xl focus:ring-2 focus:ring-drac-purple/10 focus:border-drac-pink block p-3 outline-none transition-all cursor-pointer hover:border-drac-pink"
                   >
@@ -345,17 +380,17 @@ function SearchPageContent() {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-drac-comment tracking-wider">가격대</label>
                   <div className="flex items-center gap-2">
-                    <input 
-                      type="number" 
-                      placeholder="최소 금액" 
+                    <input
+                      type="number"
+                      placeholder="최소 금액"
                       value={minPrice}
                       onChange={(e) => setMinPrice(e.target.value)}
                       className="w-full bg-drac-current border border-drac-comment text-drac-fg text-sm rounded-xl focus:ring-2 focus:ring-drac-purple/10 focus:border-drac-pink block p-3 outline-none transition-all hover:border-drac-pink"
                     />
                     <span className="text-drac-comment font-medium">-</span>
-                    <input 
-                      type="number" 
-                      placeholder="최대 금액" 
+                    <input
+                      type="number"
+                      placeholder="최대 금액"
                       value={maxPrice}
                       onChange={(e) => setMaxPrice(e.target.value)}
                       className="w-full bg-drac-current border border-drac-comment text-drac-fg text-sm rounded-xl focus:ring-2 focus:ring-drac-purple/10 focus:border-drac-pink block p-3 outline-none transition-all hover:border-drac-pink"
@@ -363,22 +398,23 @@ function SearchPageContent() {
                   </div>
                 </div>
               </div>
-              
-              <div className="flex gap-2 w-full lg:w-auto">
-                <button 
-                  type="button" 
+
+              <div className="flex gap-2 w-full md:w-auto">
+                <button
+                  type="button"
                   onClick={handleResetFilters}
-                  className="flex items-center justify-center gap-2 px-6 py-3 border border-drac-comment bg-drac-bg text-drac-fg rounded-xl hover:bg-drac-current transition-colors font-semibold text-sm w-full lg:w-auto"
+                  className="flex items-center justify-center gap-2 px-6 py-3 border border-drac-comment bg-drac-bg text-drac-fg rounded-xl hover:bg-drac-current transition-colors font-semibold text-sm w-full md:w-auto"
                 >
                   <RefreshCcw size={16} />
                   초기화
                 </button>
-                <button 
-                  type="submit" 
-                  className="px-8 py-3 bg-drac-purple text-drac-bg rounded-xl font-bold hover:bg-drac-purple/80 transition-colors shadow-lg shadow-drac-purple/20 text-sm w-full lg:w-auto"
+                <button
+                  type="submit"
+                  className="px-8 py-3 bg-drac-purple text-drac-bg rounded-xl font-bold hover:bg-drac-purple/80 transition-colors shadow-lg shadow-drac-purple/20 text-sm w-full md:w-auto"
                 >
                   필터 적용
                 </button>
+              </div>
               </div>
             </form>
 
