@@ -667,8 +667,10 @@ export default function CartPage() {
                 </div>
               </div>
               
-              <button 
+              <button
                 disabled={isEmpty}
+                onClick={() => router.push("/checkout")}
+                data-testid="cart-checkout-button"
                 className="w-full py-4.5 bg-drac-purple text-drac-fg font-bold rounded-2xl hover:bg-drac-purple/80 hover:shadow-xl hover:shadow-drac-purple/30 transition-all duration-300 text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
               >
                 <CreditCard size={20} />

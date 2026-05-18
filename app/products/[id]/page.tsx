@@ -152,6 +152,54 @@ export default function ProductDetailPage() {
     return prevGroupId !== undefined && selectedOptions[prevGroupId] !== undefined;
   };
 
+  const resolveSelectedVariantId = (): number | null => {
+    if (!product) return null;
+    if (product.optionGroups && product.optionGroups.length > 0) {
+      if (Object.keys(selectedOptions).length !== product.optionGroups.length) {
+        alert("모든 옵션을 선택해주세요.");
+        return null;
+      }
+    }
+    if (product.variants && product.variants.length > 0) {
+      if (product.optionGroups && product.optionGroups.length > 0) {
+        const selectedOptionIds = Object.values(selectedOptions);
+        const matched = product.variants.find(
+          (v) =>
+            v.combinationIds.length === selectedOptionIds.length &&
+            v.combinationIds.every((id) => selectedOptionIds.includes(id))
+        );
+        if (!matched) {
+          alert("선택하신 옵션의 상품이 존재하지 않거나 품절입니다.");
+          return null;
+        }
+        return matched.variantId;
+      }
+      return product.variants[0].variantId;
+    }
+    return null;
+  };
+
+  const handleBuyNow = () => {
+    if (!product) return;
+    if (!userInfo) {
+      alert("로그인이 필요한 서비스입니다.");
+      router.push("/login");
+      return;
+    }
+    const variantId = resolveSelectedVariantId();
+    if (!variantId) return;
+
+    sessionStorage.setItem(
+      "directOrder",
+      JSON.stringify({
+        productId: product.productId,
+        variantId,
+        quantity: 1,
+      })
+    );
+    router.push("/checkout?mode=direct");
+  };
+
   const handleAddToCart = async () => {
     if (!product) return;
 
@@ -476,7 +524,9 @@ export default function ProductDetailPage() {
                   {addingToCart ? <div className="w-5 h-5 border-2 border-drac-pink border-t-transparent rounded-full animate-spin" /> : null}
                   {addingToCart ? "담는 중..." : "장바구니 담기"}
                 </button>
-                <button 
+                <button
+                  onClick={handleBuyNow}
+                  data-testid="buy-now-button"
                   className="flex-1 py-4.5 bg-drac-purple text-drac-fg font-bold rounded-2xl hover:bg-drac-purple/80 hover:shadow-xl hover:shadow-drac-purple/30 transition-all duration-300 text-lg active:scale-[0.98]"
                 >
                   바로 구매하기
