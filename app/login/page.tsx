@@ -34,10 +34,12 @@ export default function LoginPage() {
       const json = await res.json();
 
       if (res.ok && json.data) {
-        // 성공 시 로컬 스토리지에 토큰 및 유저 정보 저장
         const { tokenInfo, userInfo } = json.data;
         localStorage.setItem("accessToken", tokenInfo.accessToken);
         localStorage.setItem("userInfo", JSON.stringify(userInfo));
+        if (tokenInfo.expiresIn) {
+          localStorage.setItem("tokenExpiresAt", String(Date.now() + tokenInfo.expiresIn * 1000));
+        }
         
         // 메인 페이지로 이동
         router.push("/");

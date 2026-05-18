@@ -1,7 +1,8 @@
 "use client";
 
 import ThemeToggle from "@/app/components/ThemeToggle";
-import { useState, useMemo, useEffect } from "react";
+import { apiFetch } from "@/app/lib/apiFetch";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,6 +17,8 @@ import {
   X,
   MessageSquare,
   UserPlus,
+  Phone,
+  UserCheck,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -38,6 +41,13 @@ interface FriendItem {
   alias: string | null;
   image: string | null;
   isFavorite: boolean;
+}
+
+interface UserSearchResult {
+  userId: number;
+  phone: string;
+  nickname: string;
+  image: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -75,6 +85,16 @@ export default function ChatPage() {
   const [rooms, setRooms] = useState<ChatRoomItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
+  // 친구 추가 모달
+  const [addFriendOpen, setAddFriendOpen] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [searchResult, setSearchResult] = useState<UserSearchResult | null>(null);
+  const [searchError, setSearchError] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addDone, setAddDone] = useState(false);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+
   // Auth guard & Data Fetch
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
@@ -88,12 +108,8 @@ export default function ChatPage() {
       try {
         setLoadingData(true);
         const [friendsRes, chatsRes] = await Promise.all([
-          fetch("/api/v1/friends", {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          fetch("/api/v1/chats", {
-            headers: { Authorization: `Bearer ${token}` }
-          })
+          apiFetch("/api/v1/friends"),
+          apiFetch("/api/v1/chats"),
         ]);
 
         if (friendsRes.ok) {
@@ -139,6 +155,73 @@ export default function ChatPage() {
 
   const totalUnread = rooms.reduce((s, r) => s + (r.unreadCount || 0), 0);
 
+  const openAddFriend = () => {
+    setPhoneInput("");
+    setSearchResult(null);
+    setSearchError("");
+    setAddDone(false);
+    setAddFriendOpen(true);
+    setTimeout(() => phoneInputRef.current?.focus(), 100);
+  };
+
+  const handleSearchUser = async () => {
+    const phone = phoneInput.trim();
+    if (!/^\d{2,3}-\d{3,4}-\d{4}$/.test(phone)) {
+      setSearchError("전화번호 형식이 올바르지 않습니다. (예: 010-1234-5678)");
+      return;
+    }
+    setSearching(true);
+    setSearchError("");
+    setSearchResult(null);
+    setAddDone(false);
+    try {
+      const res = await apiFetch("/api/v1/users/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setSearchResult(json.data);
+      } else {
+        const json = await res.json();
+        setSearchError(json.message || "사용자를 찾을 수 없습니다.");
+      }
+    } catch {
+      setSearchError("검색 중 오류가 발생했습니다.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAddFriend = async () => {
+    if (!searchResult) return;
+    setAdding(true);
+    try {
+      const res = await apiFetch("/api/v1/friends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetId: searchResult.userId }),
+      });
+      if (res.ok) {
+        setAddDone(true);
+        // 친구 목록 갱신
+        const friendsRes = await apiFetch("/api/v1/friends");
+        if (friendsRes.ok) {
+          const json = await friendsRes.json();
+          setFriends(json.data?.friends || []);
+        }
+      } else {
+        const json = await res.json();
+        setSearchError(json.message || "친구 추가에 실패했습니다.");
+      }
+    } catch {
+      setSearchError("친구 추가 중 오류가 발생했습니다.");
+    } finally {
+      setAdding(false);
+    }
+  };
+
   if (!isAuthed || loadingData) {
     return (
       <div className="min-h-screen bg-drac-bg flex items-center justify-center">
@@ -162,7 +245,10 @@ export default function ChatPage() {
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
-            <button className="w-9 h-9 rounded-full hover:bg-drac-current flex items-center justify-center text-drac-fg transition-colors">
+            <button
+              onClick={tab === "friends" ? openAddFriend : undefined}
+              className="w-9 h-9 rounded-full hover:bg-drac-current flex items-center justify-center text-drac-fg transition-colors"
+            >
               {tab === "friends" ? <UserPlus size={20} /> : <Plus size={20} />}
             </button>
           </div>
@@ -348,30 +434,21 @@ export default function ChatPage() {
                 onClick={async () => {
                   // 채팅방 생성 요청
                   try {
-                    const token = localStorage.getItem("accessToken");
-                    const res = await fetch("/api/v1/chats", {
+                    const res = await apiFetch("/api/v1/chats", {
                       method: "POST",
-                      headers: { 
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                      },
-                      body: JSON.stringify({ 
-                        participantIds: [selectedFriend.targetId], 
-                        roomType: "SINGLE" 
-                      })
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ receiverId: selectedFriend.targetId }),
                     });
-                    
+
                     if (res.ok) {
                       const json = await res.json();
-                      const chatRoomId = json.data?.chatRoomId || json.data?.id;
+                      const chatRoomId = json.data?.chatRoomId;
                       if (chatRoomId) {
                         router.push(`/chat/${chatRoomId}`);
-                      } else {
-                        // fallback
-                        router.push(`/chat/${selectedFriend.targetId}`);
                       }
                     } else {
-                      alert("채팅방을 생성할 수 없습니다.");
+                      const json = await res.json().catch(() => ({}));
+                      alert(json.message || "채팅방을 생성할 수 없습니다.");
                     }
                   } catch (e) {
                     console.error(e);
@@ -384,6 +461,101 @@ export default function ChatPage() {
                 <MessageSquare size={18} />
                 채팅하기
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 친구 추가 모달 ═══ */}
+      {addFriendOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center" onClick={() => setAddFriendOpen(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative bg-drac-bg rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm shadow-2xl border border-drac-current overflow-hidden animate-[slideUp_0.3s_ease-out]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-drac-current">
+              <div className="flex items-center gap-2">
+                <UserPlus size={20} className="text-drac-purple" />
+                <h2 className="text-lg font-bold text-drac-fg">친구 추가</h2>
+              </div>
+              <button onClick={() => setAddFriendOpen(false)} className="w-8 h-8 rounded-full hover:bg-drac-current flex items-center justify-center text-drac-comment transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* 검색 입력 */}
+            <div className="px-6 py-5 flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-drac-comment">전화번호로 검색</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-drac-comment" />
+                    <input
+                      ref={phoneInputRef}
+                      type="tel"
+                      value={phoneInput}
+                      onChange={(e) => {
+                        setPhoneInput(e.target.value);
+                        setSearchError("");
+                        setSearchResult(null);
+                        setAddDone(false);
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && handleSearchUser()}
+                      placeholder="010-1234-5678"
+                      className="w-full pl-10 pr-3 py-3 bg-drac-current border border-transparent rounded-xl text-sm text-drac-fg placeholder:text-drac-comment/50 outline-none focus:border-drac-purple transition-all"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSearchUser}
+                    disabled={searching || !phoneInput.trim()}
+                    className="px-4 py-3 bg-drac-purple text-white text-sm font-bold rounded-xl hover:bg-drac-purple/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0"
+                  >
+                    {searching ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Search size={15} />
+                    )}
+                    검색
+                  </button>
+                </div>
+                {searchError && (
+                  <p className="text-xs text-red-400 font-medium mt-0.5">{searchError}</p>
+                )}
+              </div>
+
+              {/* 검색 결과 */}
+              {searchResult && (
+                <div className="bg-drac-current rounded-2xl p-4 flex items-center gap-3.5">
+                  <div className={`w-12 h-12 rounded-full bg-gradient-to-tr ${getGradient(searchResult.userId)} flex items-center justify-center text-white text-lg font-bold shrink-0`}>
+                    {searchResult.nickname.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-drac-fg truncate">{searchResult.nickname}</p>
+                    <p className="text-xs text-drac-comment mt-0.5">{searchResult.phone}</p>
+                  </div>
+                  {addDone ? (
+                    <div className="flex items-center gap-1.5 text-drac-green text-sm font-bold shrink-0">
+                      <UserCheck size={18} />
+                      추가됨
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleAddFriend}
+                      disabled={adding}
+                      className="px-3.5 py-2 bg-drac-purple text-white text-xs font-bold rounded-xl hover:bg-drac-purple/80 transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+                    >
+                      {adding ? (
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <UserPlus size={14} />
+                      )}
+                      친구 추가
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import ThemeToggle from "@/app/components/ThemeToggle";
+import { apiFetch } from "@/app/lib/apiFetch";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -50,7 +51,7 @@ export default function MyPage() {
         setUserInfo(parsed);
         // Check if seller has a store
         if (parsed.role === "ROLE_SELLER" || parsed.role === "SELLER" || parsed.role === "ROLE_USER_SELLER") {
-          fetch("/api/v1/stores", { headers: { "Authorization": `Bearer ${token}` } })
+          apiFetch("/api/v1/stores")
             .then(res => {
               if (res.ok) setHasStore(true);
               else setHasStore(false);
@@ -67,12 +68,13 @@ export default function MyPage() {
   const handleLogout = async () => {
     if (!confirm("로그아웃 하시겠습니까?")) return;
     try {
-      await fetch("/api/v1/auth/logout", { method: "POST" });
+      await apiFetch("/api/v1/auth/logout", { method: "POST" });
     } catch (e) {
       console.error(e);
     } finally {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("userInfo");
+      localStorage.removeItem("tokenExpiresAt");
       router.push("/");
     }
   };
@@ -81,19 +83,16 @@ export default function MyPage() {
     if (!confirm("정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
     
     try {
-      const token = localStorage.getItem("accessToken");
       const isSeller = userInfo?.role === "ROLE_SELLER" || userInfo?.role === "SELLER";
       const url = isSeller ? "/api/v1/sellers/withdraw" : "/api/v1/users/withdraw";
-      
-      const res = await fetch(url, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      
+
+      const res = await apiFetch(url, { method: "DELETE" });
+
       if (res.ok) {
         alert("회원 탈퇴가 완료되었습니다.");
         localStorage.removeItem("accessToken");
         localStorage.removeItem("userInfo");
+        localStorage.removeItem("tokenExpiresAt");
         router.push("/");
       } else {
         alert("탈퇴 처리 중 오류가 발생했습니다.");
@@ -112,22 +111,18 @@ export default function MyPage() {
     }
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch("/api/v1/sellers/register", {
+      const res = await apiFetch("/api/v1/sellers/register", {
         method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ buzNo, name: storeName, phone: storePhone })
       });
       if (res.ok) {
         alert("판매자 등록이 완료되었습니다. 권한 적용을 위해 다시 로그인 해주세요.");
         setIsSellerModalOpen(false);
-        // 로그아웃 처리 후 리다이렉트
-        await fetch("/api/v1/auth/logout", { method: "POST" });
+        await apiFetch("/api/v1/auth/logout", { method: "POST" });
         localStorage.removeItem("accessToken");
         localStorage.removeItem("userInfo");
+        localStorage.removeItem("tokenExpiresAt");
         router.push("/login");
       } else {
         const json = await res.json();
@@ -149,18 +144,14 @@ export default function MyPage() {
     }
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch("/api/v1/stores", {
+      const res = await apiFetch("/api/v1/stores", {
         method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ 
-          name: newStoreName, 
-          description: newStoreDesc, 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newStoreName,
+          description: newStoreDesc,
           phone: newStorePhone,
-          thumbnail: "https://placehold.co/400x400/eeeeee/999999.png?text=Store" // 기본 회색 placeholder (PNG 명시)
+          thumbnail: "https://placehold.co/400x400/eeeeee/999999.png?text=Store"
         })
       });
       if (res.ok) {

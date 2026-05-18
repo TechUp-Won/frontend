@@ -1,6 +1,7 @@
 "use client";
 
 import ThemeToggle from "@/app/components/ThemeToggle";
+import { apiFetch } from "@/app/lib/apiFetch";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -20,6 +21,7 @@ interface CartItemInfo {
   quantity: number;
   stock: number;
   status: string;
+  sellable: boolean;
 }
 
 interface CartSummary {
@@ -91,12 +93,7 @@ export default function CartPage() {
 
   const fetchCart = async () => {
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch('/api/v1/carts', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const res = await apiFetch('/api/v1/carts');
       if (res.ok) {
         const json = await res.json();
         setCart(json.data);
@@ -171,12 +168,13 @@ export default function CartPage() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/v1/auth/logout", { method: "POST" });
+      await apiFetch("/api/v1/auth/logout", { method: "POST" });
     } catch (e) {
       console.error(e);
     } finally {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("userInfo");
+      localStorage.removeItem("tokenExpiresAt");
       setUserInfo(null);
     }
   };
@@ -187,13 +185,9 @@ export default function CartPage() {
       return;
     }
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`/api/v1/carts/items/${cartItemId}/quantity`, {
+      const res = await apiFetch(`/api/v1/carts/items/${cartItemId}/quantity`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quantity: localQuantity })
       });
       if (res.ok) {
@@ -212,12 +206,8 @@ export default function CartPage() {
   const handleDeleteItem = async (cartItemId: number) => {
     if (!confirm("상품을 장바구니에서 삭제하시겠습니까?")) return;
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`/api/v1/carts/items?cartItemIds=${cartItemId}`, {
+      const res = await apiFetch(`/api/v1/carts/items?cartItemIds=${cartItemId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (res.ok) {
         fetchCart();
@@ -233,12 +223,8 @@ export default function CartPage() {
   const handleDeleteAll = async () => {
     if (!confirm("장바구니를 모두 비우시겠습니까?")) return;
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`/api/v1/carts/items?isAllDelete=true`, {
+      const res = await apiFetch(`/api/v1/carts/items?isAllDelete=true`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (res.ok) {
         fetchCart();
@@ -349,13 +335,9 @@ export default function CartPage() {
 
     setSavingOption(true);
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`/api/v1/carts/items/${editingOptionItem.cartItemId}/option`, {
+      const res = await apiFetch(`/api/v1/carts/items/${editingOptionItem.cartItemId}/option`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ variantId })
       });
 
@@ -512,9 +494,10 @@ export default function CartPage() {
               <div className="flex flex-col gap-4">
                 {cart.cartItems.map((item) => {
                   const itemPrice = item.discountRate > 0 ? item.discountedPrice ?? item.price : item.price;
+                  const isAvailable = item.sellable;
                   
                   return (
-                    <div key={item.cartItemId} className="bg-drac-bg rounded-3xl p-5 shadow-sm border border-drac-current flex flex-col sm:flex-row gap-5 relative group">
+                    <div key={item.cartItemId} className={`bg-drac-bg rounded-3xl p-5 shadow-sm border border-drac-current flex flex-col sm:flex-row gap-5 relative group ${isAvailable ? '' : 'opacity-60 grayscale-[0.3]'}`}>
                       {/* Delete Button */}
                       <button 
                         onClick={() => handleDeleteItem(item.cartItemId)}
@@ -537,6 +520,13 @@ export default function CartPage() {
                           <Link href={`/products/${item.id}`} className="text-lg font-bold text-drac-fg mb-1 hover:text-drac-pink transition-colors pr-8 block line-clamp-2">
                             {item.name}
                           </Link>
+                          {!isAvailable && (
+                            <div className="mb-2">
+                              <span className="inline-block px-2.5 py-1 bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold rounded-lg tracking-wide">
+                                판매 불가 상품입니다
+                              </span>
+                            </div>
+                          )}
                           {item.variantName && (
                             <div className="flex items-center gap-2 mb-3">
                               <span className="text-[10px] font-black text-drac-comment uppercase bg-drac-current px-1.5 py-0.5 rounded border border-drac-comment/20">
@@ -600,12 +590,14 @@ export default function CartPage() {
                             )}
 
                             {/* Dropdown Button */}
-                            <button
-                              onClick={() => setOpenMenuId(openMenuId === item.cartItemId ? null : item.cartItemId)}
-                              className="p-1.5 text-drac-comment hover:text-drac-fg hover:bg-drac-current rounded-lg transition-colors ml-1"
-                            >
-                              <MoreHorizontal size={20} />
-                            </button>
+                            {isAvailable && (
+                              <button
+                                onClick={() => setOpenMenuId(openMenuId === item.cartItemId ? null : item.cartItemId)}
+                                className="p-1.5 text-drac-comment hover:text-drac-fg hover:bg-drac-current rounded-lg transition-colors ml-1"
+                              >
+                                <MoreHorizontal size={20} />
+                              </button>
+                            )}
 
                             {/* Dropdown Menu */}
                             {openMenuId === item.cartItemId && (

@@ -1,11 +1,13 @@
 "use client";
 
 import ThemeToggle from "@/app/components/ThemeToggle";
+import { apiFetch } from "@/app/lib/apiFetch";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Heart, Share2, ShoppingCart, Star, Sparkles, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle, Plus } from "lucide-react";
+import { useMemo } from "react";
 
 interface OptionInfo {
   productOptionId: number;
@@ -62,6 +64,30 @@ export default function ProductDetailPage() {
   // Auth state
   const [userInfo, setUserInfo] = useState<{ profileName: string, role: string } | null>(null);
 
+  // 현재 선택된 옵션 조합에 해당하는 variant
+  const selectedVariant = useMemo(() => {
+    if (!product?.variants || !product.optionGroups?.length) return product?.variants?.[0] ?? null;
+    const selectedIds = Object.values(selectedOptions);
+    if (selectedIds.length !== product.optionGroups.length) return null;
+    return product.variants.find(v =>
+      v.combinationIds.length === selectedIds.length &&
+      v.combinationIds.every(id => selectedIds.includes(id))
+    ) ?? null;
+  }, [product, selectedOptions]);
+
+  // 특정 옵션 선택 시 해당 옵션을 포함하는 variant들의 재고 합산
+  const getOptionStock = (groupIndex: number, optionId: number): number => {
+    if (!product?.variants) return 0;
+    const prevSelectedIds = product.optionGroups
+      .slice(0, groupIndex)
+      .map(g => selectedOptions[g.productOptionGroupId])
+      .filter((id): id is number => id !== undefined);
+    const path = [...prevSelectedIds, optionId];
+    return product.variants
+      .filter(v => v.status === "ON_SALE" && path.every(id => v.combinationIds.includes(id)))
+      .reduce((sum, v) => sum + v.stock, 0);
+  };
+
   useEffect(() => {
     const storedUser = localStorage.getItem("userInfo");
     if (storedUser) {
@@ -98,12 +124,13 @@ export default function ProductDetailPage() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/v1/auth/logout", { method: "POST" });
+      await apiFetch("/api/v1/auth/logout", { method: "POST" });
     } catch (e) {
       console.error(e);
     } finally {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("userInfo");
+      localStorage.removeItem("tokenExpiresAt");
       setUserInfo(null);
     }
   };
@@ -125,6 +152,49 @@ export default function ProductDetailPage() {
     } else {
       setOpenGroupIndex(-1);
     }
+  };
+
+  const resolveSelectedVariantId = (): number | null => {
+    if (!product) return null;
+    if (product.optionGroups && product.optionGroups.length > 0) {
+      if (Object.keys(selectedOptions).length !== product.optionGroups.length) {
+        alert("모든 옵션을 선택해주세요.");
+        return null;
+      }
+    }
+    if (product.variants && product.variants.length > 0) {
+      if (product.optionGroups && product.optionGroups.length > 0) {
+        const selectedOptionIds = Object.values(selectedOptions);
+        const matched = product.variants.find(
+          (v) =>
+            v.combinationIds.length === selectedOptionIds.length &&
+            v.combinationIds.every((id) => selectedOptionIds.includes(id))
+        );
+        if (!matched) {
+          alert("선택하신 옵션의 상품이 존재하지 않거나 품절입니다.");
+          return null;
+        }
+        return matched.variantId;
+      }
+      return product.variants[0].variantId;
+    }
+    return null;
+  };
+
+  const handleBuyNow = () => {
+    if (!product) return;
+    if (!userInfo) {
+      alert("로그인이 필요한 서비스입니다.");
+      router.push("/login");
+      return;
+    }
+    const variantId = resolveSelectedVariantId();
+    if (!variantId) return;
+    sessionStorage.setItem(
+      "directOrder",
+      JSON.stringify({ productId: product.productId, variantId, quantity: 1 })
+    );
+    router.push("/checkout?mode=direct");
   };
 
   const isOptionAvailable = (groupIndex: number, optionId: number) => {
@@ -239,18 +309,10 @@ export default function ProductDetailPage() {
 
     setAddingToCart(true);
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch('/api/v1/carts/items', {
+      const res = await apiFetch('/api/v1/carts/items', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          productId: product.productId,
-          variantId,
-          quantity: 1
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.productId, variantId, quantity: 1 })
       });
 
       if (res.ok) {
@@ -475,22 +537,30 @@ export default function ProductDetailPage() {
                           {group.options.map((opt, i) => {
                             const isSelected = selectedOptionId === opt.productOptionId;
                             const available = isOptionAvailable(index, opt.productOptionId);
+                            const optStock = getOptionStock(index, opt.productOptionId);
 
                             return (
                               <button
                                 key={opt.productOptionId}
                                 onClick={() => available && handleOptionSelect(index, group.productOptionGroupId, opt.productOptionId)}
                                 disabled={!available}
-                                className={`flex items-center justify-between w-full px-5 py-3.5 text-left border-b border-drac-current last:border-b-0 transition-colors 
+                                className={`flex items-center justify-between w-full px-5 py-3.5 text-left border-b border-drac-current last:border-b-0 transition-colors
                                   ${isSelected ? 'bg-drac-current hover:bg-drac-comment' : available ? 'hover:bg-drac-bg' : 'opacity-30 cursor-not-allowed bg-drac-current/5'}`}
                               >
-                                <span className={`text-sm ${isSelected ? 'font-bold text-drac-pink' : available ? 'text-drac-fg' : 'text-drac-comment'}`}>
-                                  {i + 1}. {opt.name} {!available && "(선택 불가)"}
-                                </span>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className={`text-sm ${isSelected ? 'font-bold text-drac-pink' : available ? 'text-drac-fg' : 'text-drac-comment'}`}>
+                                    {i + 1}. {opt.name}
+                                  </span>
+                                  {available ? (
+                                    <StockBadge stock={optStock} />
+                                  ) : (
+                                    <span className="text-[11px] text-drac-comment">(품절)</span>
+                                  )}
+                                </div>
                                 {isSelected ? (
-                                  <CheckCircle2 size={20} className="text-drac-pink" />
+                                  <CheckCircle2 size={20} className="text-drac-pink shrink-0" />
                                 ) : (
-                                  <Circle size={20} className="text-drac-comment" />
+                                  <Circle size={20} className="text-drac-comment shrink-0" />
                                 )}
                               </button>
                             );
@@ -501,8 +571,11 @@ export default function ProductDetailPage() {
                   );
                 })
               ) : (
-                <div className="bg-drac-bg p-4 text-center text-sm text-drac-comment">
-                  선택할 옵션이 없는 상품입니다.
+                <div className="bg-drac-bg p-4 flex items-center justify-between text-sm text-drac-comment">
+                  <span>선택할 옵션이 없는 상품입니다.</span>
+                  {product.variants?.[0] && (
+                    <StockBadge stock={product.variants[0].stock} />
+                  )}
                 </div>
               )}
             </div>
@@ -511,9 +584,20 @@ export default function ProductDetailPage() {
             <div className="mt-auto pt-6 border-t border-drac-current flex flex-col gap-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-lg font-bold text-drac-fg">총 상품 금액</span>
-                <span className="text-2xl font-black text-drac-pink">
-                  {product.discountRate > 0 ? product.discountedPrice.toLocaleString() : product.price.toLocaleString()}원
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-2xl font-black text-drac-pink">
+                    {product.discountRate > 0 ? product.discountedPrice.toLocaleString() : product.price.toLocaleString()}원
+                  </span>
+                  {selectedVariant && (
+                    <span className={`text-xs font-semibold ${selectedVariant.stock <= 5 ? "text-orange-400" : "text-drac-comment"}`}>
+                      {selectedVariant.stock === 0
+                        ? "품절"
+                        : selectedVariant.stock <= 5
+                        ? `재고 ${selectedVariant.stock}개 남음`
+                        : `재고 ${selectedVariant.stock}개`}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex gap-3">
                 <button 
@@ -547,5 +631,29 @@ export default function ProductDetailPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+// ── 재고 뱃지 ─────────────────────────────────────────────────
+function StockBadge({ stock }: { stock: number }) {
+  if (stock <= 0) return null;
+  if (stock <= 5) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-orange-500/15 text-orange-400 border border-orange-400/30">
+        잔여 {stock}개
+      </span>
+    );
+  }
+  if (stock <= 20) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-drac-yellow/10 text-drac-yellow border border-drac-yellow/20">
+        재고 {stock}개
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-drac-green/10 text-drac-green border border-drac-green/20">
+      재고 충분
+    </span>
   );
 }

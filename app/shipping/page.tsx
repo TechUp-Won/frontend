@@ -1,6 +1,7 @@
 "use client";
 
 import ThemeToggle from "@/app/components/ThemeToggle";
+import { apiFetch } from "@/app/lib/apiFetch";
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -45,10 +46,7 @@ export default function ShippingAddressPage() {
 
   const fetchAddresses = async () => {
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch("/api/v1/shipping/addresses", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+      const res = await apiFetch("/api/v1/shipping/addresses");
       if (res.ok) {
         const json = await res.json();
         setAddresses(json.data?.addresses || []);
@@ -107,26 +105,15 @@ export default function ShippingAddressPage() {
 
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("accessToken");
       const method = editingId ? "PATCH" : "POST";
-      const url = editingId 
+      const url = editingId
         ? `/api/v1/shipping/addresses/${editingId}`
         : `/api/v1/shipping/addresses`;
-        
-      const res = await fetch(url, {
+
+      const res = await apiFetch(url, {
         method,
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          recipientName,
-          recipientPhone,
-          zipCode,
-          address1,
-          address2,
-          memo
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientName, recipientPhone, zipCode, address1, address2, memo })
       });
 
       if (res.ok) {
@@ -147,11 +134,7 @@ export default function ShippingAddressPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("정말 이 배송지를 삭제하시겠습니까?")) return;
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`/api/v1/shipping/addresses/${id}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+      const res = await apiFetch(`/api/v1/shipping/addresses/${id}`, { method: "DELETE" });
       if (res.ok) {
         fetchAddresses();
       } else {
@@ -164,11 +147,7 @@ export default function ShippingAddressPage() {
 
   const handleSetDefault = async (id: number) => {
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`/api/v1/shipping/addresses/${id}/default`, {
-        method: "PATCH",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+      const res = await apiFetch(`/api/v1/shipping/addresses/${id}/default`, { method: "PATCH" });
       if (res.ok) {
         fetchAddresses();
       } else {
