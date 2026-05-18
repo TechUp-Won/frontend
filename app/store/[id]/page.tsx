@@ -6,6 +6,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Star, ShoppingCart, Heart, Store, ArrowLeft } from "lucide-react";
+import { apiFetch } from "@/app/lib/apiFetch";
 
 interface ProductSummary {
   id: number;
@@ -54,7 +55,7 @@ export default function StoreDetailPage() {
         p.append("lastSortValue", String(cursorSortVal));
       }
 
-      const res = await fetch(`/api/v1/products?${p.toString()}`);
+      const res = await apiFetch(`/api/v1/products?${p.toString()}`);
       if (res.ok) {
         const json = await res.json();
         if (json.data) {

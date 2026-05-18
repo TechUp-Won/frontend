@@ -70,7 +70,7 @@ export default function Home() {
         params.append("lastSortValue", String(cursorSortVal));
       }
 
-      const res = await fetch(`/api/v1/products?${params.toString()}`);
+      const res = await apiFetch(`/api/v1/products?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         if (json.data) {
@@ -104,7 +104,7 @@ export default function Home() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch("/api/v1/products/categories");
+      const res = await apiFetch("/api/v1/products/categories");
       if (res.ok) {
         const json = await res.json();
         if (json.data) setCategories(json.data);

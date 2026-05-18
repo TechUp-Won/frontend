@@ -22,6 +22,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import RichTextEditor from "@/app/components/RichTextEditor";
+import { apiFetch } from "@/app/lib/apiFetch";
 
 interface CategoryNode {
   id: number;
@@ -111,7 +112,7 @@ export default function NewProductPage() {
       return;
     }
     setAuthChecked(true);
-    fetch("/api/v1/products/categories")
+    apiFetch("/api/v1/products/categories")
       .then((r) => r.json())
       .then((j) => {
         if (j.data) setCategories(j.data);
@@ -172,15 +173,9 @@ export default function NewProductPage() {
   ) => {
     onChange(true, null, null);
     try {
-      const token = localStorage.getItem("accessToken");
-      if (!token) throw new Error("로그인이 필요합니다.");
-
-      const res = await fetch("/api/v1/images/presigned-url", {
+      const res = await apiFetch("/api/v1/images/presigned-url", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filename: file.name }),
       });
       const json = await res.json();
@@ -380,12 +375,6 @@ export default function NewProductPage() {
 
   // ── 최종 제출 ──────────────────────────────────────────────────
   const handleSubmit = async () => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) {
-      setStepError("로그인 정보가 만료되었습니다. 다시 로그인해주세요.");
-      return;
-    }
-
     const categoryId = subCategory || mainCategory;
     const uploadedImages = detailImages
       .filter((i) => i.uploaded && i.objectKey)
@@ -421,12 +410,9 @@ export default function NewProductPage() {
     setSubmitting(true);
     setStepError("");
     try {
-      const res = await fetch("/api/v1/products", {
+      const res = await apiFetch("/api/v1/products", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const json = await res.json();

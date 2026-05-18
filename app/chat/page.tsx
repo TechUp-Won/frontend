@@ -19,6 +19,12 @@ import {
   UserPlus,
   Phone,
   UserCheck,
+  Pencil,
+  EyeOff,
+  ShieldBan,
+  Trash2,
+  CheckCircle2,
+  FileText,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -95,13 +101,16 @@ export default function ChatPage() {
   const [addDone, setAddDone] = useState(false);
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
+  // 친구 관리 상태
+  const [friendActionLoading, setFriendActionLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false); // 별칭·메모 수정 모드
+  const [editAlias, setEditAlias] = useState("");
+  const [editMemo, setEditMemo] = useState("");
+
   // Auth guard & Data Fetch
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
+    if (!token) { router.replace("/login"); return; }
     setIsAuthed(true);
 
     const fetchData = async () => {
@@ -111,12 +120,10 @@ export default function ChatPage() {
           apiFetch("/api/v1/friends"),
           apiFetch("/api/v1/chats"),
         ]);
-
         if (friendsRes.ok) {
           const fJson = await friendsRes.json();
           setFriends(fJson.data?.friends || []);
         }
-
         if (chatsRes.ok) {
           const cJson = await chatsRes.json();
           setRooms(cJson.data?.rooms || []);
@@ -127,7 +134,6 @@ export default function ChatPage() {
         setLoadingData(false);
       }
     };
-
     fetchData();
   }, [router]);
 
@@ -148,20 +154,27 @@ export default function ChatPage() {
       const q = searchQuery.toLowerCase();
       currentRooms = currentRooms.filter((r) => r.roomTitle?.toLowerCase().includes(q) || r.lastMessageContent?.toLowerCase().includes(q));
     }
-    const pinned = currentRooms.filter((r) => r.isPinned);
-    const unpinned = currentRooms.filter((r) => !r.isPinned);
-    return [...pinned, ...unpinned];
+    return [...currentRooms.filter((r) => r.isPinned), ...currentRooms.filter((r) => !r.isPinned)];
   }, [searchQuery, rooms]);
 
   const totalUnread = rooms.reduce((s, r) => s + (r.unreadCount || 0), 0);
 
   const openAddFriend = () => {
-    setPhoneInput("");
-    setSearchResult(null);
-    setSearchError("");
-    setAddDone(false);
+    setPhoneInput(""); setSearchResult(null); setSearchError(""); setAddDone(false);
     setAddFriendOpen(true);
     setTimeout(() => phoneInputRef.current?.focus(), 100);
+  };
+
+  const openFriendProfile = (f: FriendItem) => {
+    setSelectedFriend(f);
+    setEditMode(false);
+    setEditAlias(f.alias || "");
+    setEditMemo("");
+  };
+
+  const closeFriendProfile = () => {
+    setSelectedFriend(null);
+    setEditMode(false);
   };
 
   const handleSearchUser = async () => {
@@ -170,10 +183,7 @@ export default function ChatPage() {
       setSearchError("전화번호 형식이 올바르지 않습니다. (예: 010-1234-5678)");
       return;
     }
-    setSearching(true);
-    setSearchError("");
-    setSearchResult(null);
-    setAddDone(false);
+    setSearching(true); setSearchError(""); setSearchResult(null); setAddDone(false);
     try {
       const res = await apiFetch("/api/v1/users/search", {
         method: "POST",
@@ -187,11 +197,8 @@ export default function ChatPage() {
         const json = await res.json();
         setSearchError(json.message || "사용자를 찾을 수 없습니다.");
       }
-    } catch {
-      setSearchError("검색 중 오류가 발생했습니다.");
-    } finally {
-      setSearching(false);
-    }
+    } catch { setSearchError("검색 중 오류가 발생했습니다."); }
+    finally { setSearching(false); }
   };
 
   const handleAddFriend = async () => {
@@ -205,7 +212,6 @@ export default function ChatPage() {
       });
       if (res.ok) {
         setAddDone(true);
-        // 친구 목록 갱신
         const friendsRes = await apiFetch("/api/v1/friends");
         if (friendsRes.ok) {
           const json = await friendsRes.json();
@@ -215,11 +221,85 @@ export default function ChatPage() {
         const json = await res.json();
         setSearchError(json.message || "친구 추가에 실패했습니다.");
       }
-    } catch {
-      setSearchError("친구 추가 중 오류가 발생했습니다.");
-    } finally {
-      setAdding(false);
-    }
+    } catch { setSearchError("친구 추가 중 오류가 발생했습니다."); }
+    finally { setAdding(false); }
+  };
+
+  // ── 친구 관리 핸들러 ──────────────────────────────────────────
+
+  const handleUpdateFriend = async () => {
+    if (!selectedFriend) return;
+    setFriendActionLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/friends/${selectedFriend.friendId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          alias: editAlias || undefined,
+          memo: editMemo || undefined,
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const updated = json.data;
+        setFriends((prev) =>
+          prev.map((f) =>
+            f.friendId === selectedFriend.friendId
+              ? { ...f, alias: updated.alias }
+              : f
+          )
+        );
+        setSelectedFriend((prev) => prev ? { ...prev, alias: updated.alias } : null);
+        setEditMode(false);
+        // 채팅방 제목은 별칭 기반이므로 목록 재조회
+        apiFetch("/api/v1/chats")
+          .then(async (r) => { if (r.ok) setRooms((await r.json()).data?.rooms || []); })
+          .catch(() => {});
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert((json as { message?: string }).message || "수정에 실패했습니다.");
+      }
+    } catch { alert("네트워크 오류가 발생했습니다."); }
+    finally { setFriendActionLoading(false); }
+  };
+
+  const handleChangeStatus = async (status: "HIDDEN" | "BLOCK") => {
+    if (!selectedFriend) return;
+    const label = status === "BLOCK" ? "차단" : "숨기기";
+    if (!confirm(`${selectedFriend.alias || selectedFriend.name}님을 ${label}하시겠습니까?`)) return;
+    setFriendActionLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/friends/${selectedFriend.friendId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        setFriends((prev) => prev.filter((f) => f.friendId !== selectedFriend.friendId));
+        closeFriendProfile();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert((json as { message?: string }).message || `${label} 처리에 실패했습니다.`);
+      }
+    } catch { alert("네트워크 오류가 발생했습니다."); }
+    finally { setFriendActionLoading(false); }
+  };
+
+  const handleDeleteFriend = async () => {
+    if (!selectedFriend) return;
+    if (!confirm(`${selectedFriend.alias || selectedFriend.name}님을 친구 목록에서 삭제하시겠습니까?`)) return;
+    setFriendActionLoading(true);
+    try {
+      const res = await apiFetch(`/api/v1/friends/${selectedFriend.friendId}`, { method: "DELETE" });
+      if (res.ok) {
+        setFriends((prev) => prev.filter((f) => f.friendId !== selectedFriend.friendId));
+        closeFriendProfile();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert((json as { message?: string }).message || "삭제에 실패했습니다.");
+      }
+    } catch { alert("네트워크 오류가 발생했습니다."); }
+    finally { setFriendActionLoading(false); }
   };
 
   if (!isAuthed || loadingData) {
@@ -239,9 +319,7 @@ export default function ChatPage() {
             <button onClick={() => router.push("/")} className="w-9 h-9 rounded-full bg-drac-current flex items-center justify-center hover:bg-drac-comment/30 text-drac-fg transition-colors">
               <ArrowLeft size={18} />
             </button>
-            <h1 className="text-lg font-bold text-drac-fg">
-              {tab === "friends" ? "친구" : "채팅"}
-            </h1>
+            <h1 className="text-lg font-bold text-drac-fg">{tab === "friends" ? "친구" : "채팅"}</h1>
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
@@ -262,16 +340,14 @@ export default function ChatPage() {
             onClick={() => { setTab("friends"); setSearchQuery(""); }}
             className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${tab === "friends" ? "bg-drac-bg text-drac-fg shadow-sm" : "text-drac-comment hover:text-drac-fg"}`}
           >
-            <Users size={16} />
-            친구
+            <Users size={16} />친구
             <span className="text-[11px] text-drac-comment font-medium">{friends.length}</span>
           </button>
           <button
             onClick={() => { setTab("chats"); setSearchQuery(""); }}
             className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${tab === "chats" ? "bg-drac-bg text-drac-fg shadow-sm" : "text-drac-comment hover:text-drac-fg"}`}
           >
-            <MessageCircle size={16} />
-            채팅
+            <MessageCircle size={16} />채팅
             {totalUnread > 0 && (
               <span className="min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-drac-pink text-white text-[10px] font-bold rounded-full">
                 {totalUnread > 99 ? "99+" : totalUnread}
@@ -298,7 +374,6 @@ export default function ChatPage() {
       {/* Content */}
       <main className="flex-1 max-w-2xl mx-auto w-full pb-8">
         {tab === "friends" ? (
-          /* ═══ Friends Tab ═══ */
           filteredFriends.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-4">
               <div className="w-16 h-16 bg-drac-current rounded-full flex items-center justify-center mb-4">
@@ -331,7 +406,7 @@ export default function ChatPage() {
                   </div>
                   <ul>
                     {favoriteFriends.map((f) => (
-                      <FriendRow key={f.friendId} friend={f} onSelect={setSelectedFriend} />
+                      <FriendRow key={f.friendId} friend={f} onSelect={openFriendProfile} />
                     ))}
                   </ul>
                 </div>
@@ -346,14 +421,13 @@ export default function ChatPage() {
                 </div>
                 <ul>
                   {normalFriends.map((f) => (
-                    <FriendRow key={f.friendId} friend={f} onSelect={setSelectedFriend} />
+                    <FriendRow key={f.friendId} friend={f} onSelect={openFriendProfile} />
                   ))}
                 </ul>
               </div>
             </div>
           )
         ) : (
-          /* ═══ Chats Tab ═══ */
           sortedRooms.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-4">
               <div className="w-16 h-16 bg-drac-current rounded-full flex items-center justify-center mb-4">
@@ -368,8 +442,13 @@ export default function ChatPage() {
                 <li key={room.chatRoomId}>
                   <Link href={`/chat/${room.chatRoomId}`} className="flex items-center gap-3.5 px-4 sm:px-6 py-3.5 hover:bg-drac-current/40 active:bg-drac-current/60 transition-colors cursor-pointer">
                     <div className="relative shrink-0">
-                      <div className={`w-13 h-13 rounded-full bg-gradient-to-tr ${getGradient(room.chatRoomId)} flex items-center justify-center text-white shadow-md`}>
-                        {getRoomIcon(room.roomType)}
+                      <div className={`w-13 h-13 rounded-full bg-gradient-to-tr ${getGradient(room.chatRoomId)} flex items-center justify-center text-white shadow-md overflow-hidden relative`}>
+                        {room.roomType === "SINGLE"
+                          ? <span className="text-base font-bold">{room.roomTitle?.charAt(0)}</span>
+                          : getRoomIcon(room.roomType)}
+                        {room.roomImage && (
+                          <img src={room.roomImage} alt="" className="absolute inset-0 w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        )}
                       </div>
                       {room.roomType === "GROUP" && (
                         <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-drac-current border-2 border-drac-bg rounded-full flex items-center justify-center text-[9px] font-bold text-drac-fg">{room.participantCount}</span>
@@ -398,70 +477,155 @@ export default function ChatPage() {
         )}
       </main>
 
-      {/* ═══ Friend Profile Modal ═══ */}
+      {/* ═══ 친구 프로필 모달 ═══ */}
       {selectedFriend && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center" onClick={() => setSelectedFriend(null)}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center" onClick={closeFriendProfile}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
             className="relative bg-drac-bg rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm shadow-2xl border border-drac-current overflow-hidden animate-[slideUp_0.3s_ease-out]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Profile Header */}
-            <div className="relative h-32 bg-gradient-to-br from-drac-purple/30 via-drac-cyan/20 to-drac-pink/30">
-              <button onClick={() => setSelectedFriend(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-drac-bg/80 backdrop-blur-sm flex items-center justify-center text-drac-fg hover:bg-drac-bg transition-colors">
+            <div className="relative h-28 bg-gradient-to-br from-drac-purple/30 via-drac-cyan/20 to-drac-pink/30">
+              <button onClick={closeFriendProfile} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-drac-bg/80 backdrop-blur-sm flex items-center justify-center text-drac-fg hover:bg-drac-bg transition-colors">
                 <X size={16} />
               </button>
             </div>
 
             {/* Avatar */}
-            <div className="flex justify-center -mt-12">
-              <div className={`w-24 h-24 rounded-full bg-gradient-to-tr ${getGradient(selectedFriend.targetId)} flex items-center justify-center text-white text-3xl font-bold shadow-lg border-4 border-drac-bg`}>
+            <div className="flex justify-center -mt-10">
+              <div className={`w-20 h-20 rounded-full bg-gradient-to-tr ${getGradient(selectedFriend.targetId)} flex items-center justify-center text-white text-2xl font-bold shadow-lg border-4 border-drac-bg overflow-hidden`}>
                 {(selectedFriend.alias || selectedFriend.name).charAt(0)}
+              {selectedFriend.image && (
+                <img src={selectedFriend.image} alt="" className="absolute inset-0 w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              )}
               </div>
             </div>
 
             {/* Info */}
-            <div className="text-center px-6 pt-3 pb-2">
+            <div className="text-center px-6 pt-2 pb-1">
               <h2 className="text-xl font-bold text-drac-fg">{selectedFriend.alias || selectedFriend.name}</h2>
               {selectedFriend.alias && (
                 <p className="text-sm text-drac-comment mt-0.5">이름: {selectedFriend.name}</p>
               )}
+              {selectedFriend.isFavorite && (
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  <Star size={12} className="fill-drac-yellow text-drac-yellow" />
+                  <span className="text-xs text-drac-yellow font-medium">즐겨찾기</span>
+                </div>
+              )}
             </div>
 
-            {/* Action Buttons */}
-            <div className="px-6 pb-6 pt-4 flex gap-3">
-              <button
-                onClick={async () => {
-                  // 채팅방 생성 요청
-                  try {
-                    const res = await apiFetch("/api/v1/chats", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ receiverId: selectedFriend.targetId }),
-                    });
-
-                    if (res.ok) {
-                      const json = await res.json();
-                      const chatRoomId = json.data?.chatRoomId;
-                      if (chatRoomId) {
-                        router.push(`/chat/${chatRoomId}`);
+            {/* 별칭·메모 수정 폼 */}
+            {editMode ? (
+              <div className="px-6 pt-3 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-drac-comment mb-1">별칭 <span className="text-drac-comment/50 font-normal">(최대 20자)</span></label>
+                  <input
+                    type="text"
+                    value={editAlias}
+                    onChange={(e) => setEditAlias(e.target.value)}
+                    maxLength={20}
+                    placeholder={selectedFriend.name}
+                    className="w-full px-3 py-2.5 bg-drac-current border border-transparent rounded-xl text-sm text-drac-fg placeholder:text-drac-comment/50 focus:border-drac-purple outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-drac-comment mb-1">메모 <span className="text-drac-comment/50 font-normal">(최대 200자)</span></label>
+                  <textarea
+                    value={editMemo}
+                    onChange={(e) => setEditMemo(e.target.value)}
+                    maxLength={200}
+                    rows={2}
+                    placeholder="메모를 입력하세요"
+                    className="w-full px-3 py-2.5 bg-drac-current border border-transparent rounded-xl text-sm text-drac-fg placeholder:text-drac-comment/50 focus:border-drac-purple outline-none transition-all resize-none"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditMode(false)}
+                    className="flex-1 py-2.5 bg-drac-current text-drac-comment font-semibold rounded-xl text-sm hover:bg-drac-comment/20 transition-colors"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleUpdateFriend}
+                    disabled={friendActionLoading}
+                    className="flex-1 py-2.5 bg-drac-purple text-white font-semibold rounded-xl text-sm hover:bg-drac-purple/80 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    {friendActionLoading
+                      ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <CheckCircle2 size={15} />}
+                    저장
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="px-6 pb-6 pt-4 space-y-3">
+                {/* 채팅하기 */}
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await apiFetch("/api/v1/chats", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ receiverId: selectedFriend.targetId }),
+                      });
+                      if (res.ok) {
+                        const json = await res.json();
+                        const chatRoomId = json.data?.chatRoomId;
+                        if (chatRoomId) router.push(`/chat/${chatRoomId}`);
+                      } else {
+                        const json = await res.json().catch(() => ({}));
+                        alert((json as { message?: string }).message || "채팅방을 생성할 수 없습니다.");
                       }
-                    } else {
-                      const json = await res.json().catch(() => ({}));
-                      alert(json.message || "채팅방을 생성할 수 없습니다.");
-                    }
-                  } catch (e) {
-                    console.error(e);
-                  } finally {
-                    setSelectedFriend(null);
-                  }
-                }}
-                className="flex-1 py-3.5 bg-drac-purple text-white font-bold rounded-2xl hover:bg-drac-purple/80 transition-colors shadow-md shadow-drac-purple/20 flex items-center justify-center gap-2 text-sm"
-              >
-                <MessageSquare size={18} />
-                채팅하기
-              </button>
-            </div>
+                    } catch (e) { console.error(e); }
+                    finally { closeFriendProfile(); }
+                  }}
+                  className="w-full py-3.5 bg-drac-purple text-white font-bold rounded-2xl hover:bg-drac-purple/80 transition-colors shadow-md shadow-drac-purple/20 flex items-center justify-center gap-2 text-sm"
+                >
+                  <MessageSquare size={18} />채팅하기
+                </button>
+
+                {/* 관리 버튼들 */}
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    onClick={() => { setEditAlias(selectedFriend.alias || ""); setEditMemo(""); setEditMode(true); }}
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-drac-current hover:bg-drac-comment/20 transition-colors group"
+                  >
+                    <Pencil size={18} className="text-drac-purple group-hover:text-drac-pink transition-colors" />
+                    <span className="text-[10px] font-semibold text-drac-comment">별칭·메모</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleChangeStatus("HIDDEN")}
+                    disabled={friendActionLoading}
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-drac-current hover:bg-drac-comment/20 transition-colors group disabled:opacity-50"
+                  >
+                    <EyeOff size={18} className="text-drac-comment group-hover:text-drac-fg transition-colors" />
+                    <span className="text-[10px] font-semibold text-drac-comment">숨기기</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleChangeStatus("BLOCK")}
+                    disabled={friendActionLoading}
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-drac-current hover:bg-orange-500/10 transition-colors group disabled:opacity-50"
+                  >
+                    <ShieldBan size={18} className="text-orange-400 group-hover:text-orange-500 transition-colors" />
+                    <span className="text-[10px] font-semibold text-orange-400">차단</span>
+                  </button>
+
+                  <button
+                    onClick={handleDeleteFriend}
+                    disabled={friendActionLoading}
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-drac-current hover:bg-red-500/10 transition-colors group disabled:opacity-50"
+                  >
+                    <Trash2 size={18} className="text-red-400 group-hover:text-red-500 transition-colors" />
+                    <span className="text-[10px] font-semibold text-red-400">삭제</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -474,7 +638,6 @@ export default function ChatPage() {
             className="relative bg-drac-bg rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm shadow-2xl border border-drac-current overflow-hidden animate-[slideUp_0.3s_ease-out]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 헤더 */}
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-drac-current">
               <div className="flex items-center gap-2">
                 <UserPlus size={20} className="text-drac-purple" />
@@ -485,7 +648,6 @@ export default function ChatPage() {
               </button>
             </div>
 
-            {/* 검색 입력 */}
             <div className="px-6 py-5 flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-drac-comment">전화번호로 검색</label>
@@ -496,12 +658,7 @@ export default function ChatPage() {
                       ref={phoneInputRef}
                       type="tel"
                       value={phoneInput}
-                      onChange={(e) => {
-                        setPhoneInput(e.target.value);
-                        setSearchError("");
-                        setSearchResult(null);
-                        setAddDone(false);
-                      }}
+                      onChange={(e) => { setPhoneInput(e.target.value); setSearchError(""); setSearchResult(null); setAddDone(false); }}
                       onKeyDown={(e) => e.key === "Enter" && handleSearchUser()}
                       placeholder="010-1234-5678"
                       className="w-full pl-10 pr-3 py-3 bg-drac-current border border-transparent rounded-xl text-sm text-drac-fg placeholder:text-drac-comment/50 outline-none focus:border-drac-purple transition-all"
@@ -510,22 +667,15 @@ export default function ChatPage() {
                   <button
                     onClick={handleSearchUser}
                     disabled={searching || !phoneInput.trim()}
-                    className="px-4 py-3 bg-drac-purple text-white text-sm font-bold rounded-xl hover:bg-drac-purple/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0"
+                    className="px-4 py-3 bg-drac-purple text-white text-sm font-bold rounded-xl hover:bg-drac-purple/80 transition-colors disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                   >
-                    {searching ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Search size={15} />
-                    )}
+                    {searching ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Search size={15} />}
                     검색
                   </button>
                 </div>
-                {searchError && (
-                  <p className="text-xs text-red-400 font-medium mt-0.5">{searchError}</p>
-                )}
+                {searchError && <p className="text-xs text-red-400 font-medium mt-0.5">{searchError}</p>}
               </div>
 
-              {/* 검색 결과 */}
               {searchResult && (
                 <div className="bg-drac-current rounded-2xl p-4 flex items-center gap-3.5">
                   <div className={`w-12 h-12 rounded-full bg-gradient-to-tr ${getGradient(searchResult.userId)} flex items-center justify-center text-white text-lg font-bold shrink-0`}>
@@ -537,8 +687,7 @@ export default function ChatPage() {
                   </div>
                   {addDone ? (
                     <div className="flex items-center gap-1.5 text-drac-green text-sm font-bold shrink-0">
-                      <UserCheck size={18} />
-                      추가됨
+                      <UserCheck size={18} />추가됨
                     </div>
                   ) : (
                     <button
@@ -546,11 +695,7 @@ export default function ChatPage() {
                       disabled={adding}
                       className="px-3.5 py-2 bg-drac-purple text-white text-xs font-bold rounded-xl hover:bg-drac-purple/80 transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
                     >
-                      {adding ? (
-                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <UserPlus size={14} />
-                      )}
+                      {adding ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <UserPlus size={14} />}
                       친구 추가
                     </button>
                   )}
@@ -579,17 +724,17 @@ function FriendRow({ friend, onSelect }: { friend: FriendItem; onSelect: (f: Fri
         onClick={() => onSelect(friend)}
         className="w-full flex items-center gap-3.5 px-4 sm:px-6 py-2.5 hover:bg-drac-current/40 active:bg-drac-current/60 transition-colors text-left"
       >
-        <div className={`w-11 h-11 rounded-full bg-gradient-to-tr ${getGradient(friend.targetId)} flex items-center justify-center text-white text-sm font-bold shadow-md shrink-0`}>
+        <div className={`w-11 h-11 rounded-full bg-gradient-to-tr ${getGradient(friend.targetId)} flex items-center justify-center text-white text-sm font-bold shadow-md shrink-0 overflow-hidden relative`}>
           {(friend.alias || friend.name).charAt(0)}
+          {friend.image && (
+            <img src={friend.image} alt="" className="absolute inset-0 w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-[14px] text-drac-fg truncate">
-            {friend.alias || friend.name}
-          </p>
+          <p className="font-semibold text-[14px] text-drac-fg truncate">{friend.alias || friend.name}</p>
+          {friend.alias && <p className="text-xs text-drac-comment truncate">{friend.name}</p>}
         </div>
-        {friend.isFavorite && (
-          <Star size={14} className="fill-drac-yellow text-drac-yellow shrink-0" />
-        )}
+        {friend.isFavorite && <Star size={14} className="fill-drac-yellow text-drac-yellow shrink-0" />}
       </button>
     </li>
   );

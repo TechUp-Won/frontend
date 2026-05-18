@@ -101,7 +101,7 @@ export default function ProductDetailPage() {
     if (!id) return;
     const fetchProductDetail = async () => {
       try {
-        const res = await fetch(`/api/v1/products/${id}`);
+        const res = await apiFetch(`/api/v1/products/${id}`);
         if (res.ok) {
           const json = await res.json();
           if (json.data) {

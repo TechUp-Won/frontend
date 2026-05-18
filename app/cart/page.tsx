@@ -142,7 +142,7 @@ export default function CartPage() {
       const results = await Promise.all(
         newIds.map(async (id) => {
           try {
-            const res = await fetch(`/api/v1/products/${id}`);
+            const res = await apiFetch(`/api/v1/products/${id}`);
             if (res.ok) {
               const json = await res.json();
               return { id, name: json.data.store?.storeName || "Unknown Store" };
@@ -245,7 +245,7 @@ export default function CartPage() {
     setOpenGroupIndex(0);
     
     try {
-      const res = await fetch(`/api/v1/products/${item.id}`);
+      const res = await apiFetch(`/api/v1/products/${item.id}`);
       if (res.ok) {
         const json = await res.json();
         setOptionProduct(json.data);

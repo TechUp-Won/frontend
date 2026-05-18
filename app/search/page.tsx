@@ -107,7 +107,7 @@ function SearchPageContent() {
         params.append("lastSortValue", String(cursorSortVal));
       }
 
-      const res = await fetch(`/api/v1/search?${params.toString()}`);
+      const res = await apiFetch(`/api/v1/search?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         const data: SearchResponse = json.data;
@@ -156,7 +156,7 @@ function SearchPageContent() {
         console.error("Failed to parse user info", e);
       }
     }
-    fetch("/api/v1/products/categories")
+    apiFetch("/api/v1/products/categories")
       .then(res => res.ok ? res.json() : null)
       .then(json => { if (json?.data) setCategories(json.data); })
       .catch(err => console.error("Failed to fetch categories", err));
