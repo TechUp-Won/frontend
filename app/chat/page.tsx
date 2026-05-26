@@ -90,6 +90,10 @@ export default function ChatPage() {
   const [friends, setFriends] = useState<FriendItem[]>([]);
   const [rooms, setRooms] = useState<ChatRoomItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [hasNextRooms, setHasNextRooms] = useState(false);
+  const [nextRoomCursorId, setNextRoomCursorId] = useState<number | null>(null);
+  const [nextRoomLastMessageAt, setNextRoomLastMessageAt] = useState<string | null>(null);
+  const [loadingMoreRooms, setLoadingMoreRooms] = useState(false);
 
   // 친구 추가 모달
   const [addFriendOpen, setAddFriendOpen] = useState(false);
@@ -127,6 +131,9 @@ export default function ChatPage() {
         if (chatsRes.ok) {
           const cJson = await chatsRes.json();
           setRooms(cJson.data?.rooms || []);
+          setHasNextRooms(cJson.data?.hasNext ?? false);
+          setNextRoomCursorId(cJson.data?.nextCursorId ?? null);
+          setNextRoomLastMessageAt(cJson.data?.nextLastMessageAt ?? null);
         }
       } catch (err) {
         console.error("Failed to fetch friends or chats", err);
@@ -302,6 +309,28 @@ export default function ChatPage() {
     finally { setFriendActionLoading(false); }
   };
 
+  const handleLoadMoreRooms = async () => {
+    if (!hasNextRooms || loadingMoreRooms) return;
+    setLoadingMoreRooms(true);
+    try {
+      const params = new URLSearchParams({ size: "20" });
+      if (nextRoomCursorId) params.set("cursorId", String(nextRoomCursorId));
+      if (nextRoomLastMessageAt) params.set("lastMessageAt", nextRoomLastMessageAt);
+      const res = await apiFetch(`/api/v1/chats?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        setRooms((prev) => [...prev, ...(json.data?.rooms || [])]);
+        setHasNextRooms(json.data?.hasNext ?? false);
+        setNextRoomCursorId(json.data?.nextCursorId ?? null);
+        setNextRoomLastMessageAt(json.data?.nextLastMessageAt ?? null);
+      }
+    } catch (e) {
+      console.error("loadMoreRooms error", e);
+    } finally {
+      setLoadingMoreRooms(false);
+    }
+  };
+
   if (!isAuthed || loadingData) {
     return (
       <div className="min-h-screen bg-drac-bg flex items-center justify-center">
@@ -437,7 +466,7 @@ export default function ChatPage() {
               <p className="text-sm text-drac-comment">새로운 채팅을 시작해보세요.</p>
             </div>
           ) : (
-            <ul className="divide-y divide-drac-current/60">
+            <><ul className="divide-y divide-drac-current/60">
               {sortedRooms.map((room) => (
                 <li key={room.chatRoomId}>
                   <Link href={`/chat/${room.chatRoomId}`} className="flex items-center gap-3.5 px-4 sm:px-6 py-3.5 hover:bg-drac-current/40 active:bg-drac-current/60 transition-colors cursor-pointer">
@@ -473,6 +502,21 @@ export default function ChatPage() {
                 </li>
               ))}
             </ul>
+            {hasNextRooms && !searchQuery.trim() && (
+              <div className="px-4 sm:px-6 py-4">
+                <button
+                  onClick={handleLoadMoreRooms}
+                  disabled={loadingMoreRooms}
+                  className="w-full py-2.5 text-sm font-semibold text-drac-comment hover:text-drac-fg bg-drac-current/40 hover:bg-drac-current rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loadingMoreRooms ? (
+                    <div className="w-4 h-4 border-2 border-drac-comment border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    "채팅방 더 보기"
+                  )}
+                </button>
+              </div>
+            )}</>
           )
         )}
       </main>

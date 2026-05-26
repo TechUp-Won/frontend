@@ -25,6 +25,8 @@ import {
   Hash,
   ImageIcon,
   AlignLeft,
+  Package,
+  Plus,
 } from "lucide-react";
 
 type Gender = "MALE" | "FEMALE" | "NONE";
@@ -56,6 +58,16 @@ interface StoreResponse {
   thumbnail: string;
 }
 
+interface ProductSummary {
+  id: number;
+  name: string;
+  thumbnail: string | null;
+  price: number;
+  discountedPrice: number;
+  discountRate: number;
+  status: string;
+}
+
 function isSeller(role?: string) {
   return (
     role === "ROLE_SELLER" ||
@@ -71,6 +83,7 @@ export default function MyPage() {
   const [userData, setUserData] = useState<UserResponse | null>(null);
   const [sellerData, setSellerData] = useState<SellerResponse | null>(null);
   const [storeData, setStoreData] = useState<StoreResponse | null>(null);
+  const [myProducts, setMyProducts] = useState<ProductSummary[]>([]);
   const [isAuthed, setIsAuthed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -135,7 +148,19 @@ export default function MyPage() {
         .catch(e => console.error(e));
 
       apiFetch("/api/v1/stores")
-        .then(async res => { if (res.ok) setStoreData((await res.json()).data); else setStoreData(null); })
+        .then(async res => {
+          if (res.ok) {
+            const store: StoreResponse = (await res.json()).data;
+            setStoreData(store);
+            apiFetch(`/api/v1/products?storeId=${store.id}&size=50`)
+              .then(async r => {
+                if (r.ok) setMyProducts((await r.json()).data?.products ?? []);
+              })
+              .catch(() => {});
+          } else {
+            setStoreData(null);
+          }
+        })
         .catch(() => setStoreData(null));
     }
 
@@ -501,6 +526,82 @@ export default function MyPage() {
                 <p className="text-xs text-drac-comment flex items-center gap-1"><Phone size={11} />{storeData.phone}</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 내 상품 관리 (판매자 + 스토어 있을 때) */}
+        {sellerRole && storeData && (
+          <div className="bg-drac-bg border border-drac-purple/30 rounded-3xl overflow-hidden shadow-sm">
+            <div className="px-6 py-4 bg-drac-purple/10 border-b border-drac-purple/20 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package size={18} className="text-drac-purple" />
+                <span className="text-sm font-bold text-drac-purple">내 상품 관리</span>
+                {myProducts.length > 0 && (
+                  <span className="text-xs font-bold text-drac-comment">({myProducts.length})</span>
+                )}
+              </div>
+              <Link
+                href="/products/new"
+                className="flex items-center gap-1.5 text-xs font-semibold text-drac-purple hover:text-drac-fg transition-colors px-3 py-1.5 rounded-xl bg-drac-purple/10 hover:bg-drac-purple/20"
+              >
+                <Plus size={13} /> 상품 등록
+              </Link>
+            </div>
+
+            {myProducts.length === 0 ? (
+              <div className="p-8 text-center text-drac-comment text-sm">
+                등록된 상품이 없습니다.
+              </div>
+            ) : (
+              <ul className="divide-y divide-drac-current">
+                {myProducts.map((product) => (
+                  <li key={product.id}>
+                    <Link
+                      href={`/products/${product.id}/edit`}
+                      className="flex items-center gap-4 px-6 py-4 hover:bg-drac-current/30 transition-colors group"
+                    >
+                      <div className="w-12 h-12 rounded-xl overflow-hidden bg-drac-current shrink-0 border border-drac-comment/20">
+                        {product.thumbnail ? (
+                          <img
+                            src={product.thumbnail}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package size={16} className="text-drac-comment" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-drac-fg truncate group-hover:text-drac-pink transition-colors">
+                          {product.name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-drac-comment">
+                            {product.discountRate > 0
+                              ? `${product.discountedPrice.toLocaleString()}원`
+                              : `${product.price.toLocaleString()}원`}
+                          </span>
+                          {product.status === "SUSPENDED" && (
+                            <span className="text-[10px] font-bold text-orange-400 bg-orange-400/10 px-1.5 py-0.5 rounded-full">
+                              판매중지
+                            </span>
+                          )}
+                          {product.status === "SOLD_OUT" && (
+                            <span className="text-[10px] font-bold text-drac-comment bg-drac-current px-1.5 py-0.5 rounded-full">
+                              품절
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Pencil size={15} className="text-drac-comment group-hover:text-drac-purple transition-colors shrink-0" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 

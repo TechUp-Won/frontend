@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { apiFetch } from "@/app/lib/api";
 
-export default function PaymentFailPage() {
+function PaymentFailContent() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -89,5 +89,19 @@ export default function PaymentFailPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function PaymentFailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-drac-bg flex items-center justify-center">
+          <Loader2 size={48} className="text-drac-pink animate-spin" />
+        </div>
+      }
+    >
+      <PaymentFailContent />
+    </Suspense>
   );
 }

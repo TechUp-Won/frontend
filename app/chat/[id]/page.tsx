@@ -121,6 +121,9 @@ export default function ChatRoomPage() {
   });
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [olderCursorId, setOlderCursorId] = useState<number | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const [inputValue, setInputValue] = useState("");
   const [replyTo, setReplyTo] = useState<ChatMessageItem | null>(null);
@@ -171,6 +174,44 @@ export default function ChatRoomPage() {
     }
   }, [roomId, parseMessage]);
 
+  const loadOlderMessages = useCallback(async () => {
+    if (!hasOlderMessages || loadingOlder || olderCursorId === null) return;
+    setLoadingOlder(true);
+
+    const scrollEl = scrollContainerRef.current;
+    const prevScrollHeight = scrollEl?.scrollHeight ?? 0;
+
+    try {
+      const res = await apiFetch(
+        `/api/v1/chats/${roomId}/messages?cursorId=${olderCursorId}&size=20`
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      const older: ChatMessageItem[] = [...(json.data?.messageList ?? [])]
+        .reverse()
+        .map(parseMessage);
+
+      setMessages((prev) => {
+        const existingIds = new Set(prev.filter((m) => m.messageId > 0).map((m) => m.messageId));
+        const toAdd = older.filter((m) => !existingIds.has(m.messageId));
+        return [...toAdd, ...prev];
+      });
+      setHasOlderMessages(json.data?.hasNext ?? false);
+      setOlderCursorId(json.data?.nextCursorId ?? null);
+
+      // 스크롤 위치 복원: 이전 scrollHeight와의 차이만큼 보정
+      requestAnimationFrame(() => {
+        if (scrollEl) {
+          scrollEl.scrollTop = scrollEl.scrollHeight - prevScrollHeight;
+        }
+      });
+    } catch (e) {
+      console.error("loadOlderMessages error", e);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [hasOlderMessages, loadingOlder, olderCursorId, roomId, parseMessage]);
+
   // Auth guard & 초기 데이터 로드
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
@@ -211,6 +252,8 @@ export default function ChatRoomPage() {
           // 백엔드가 DESC로 반환 → ASC 정렬
           const msgs = [...(json.data?.messageList ?? [])].reverse().map(parseMessage);
           setMessages(msgs);
+          setHasOlderMessages(json.data?.hasNext ?? false);
+          setOlderCursorId(json.data?.nextCursorId ?? null);
         }
       } catch (err) {
         console.error("Failed to load chat details", err);
@@ -283,6 +326,9 @@ export default function ChatRoomPage() {
     if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setShowScrollDown(distFromBottom > 200);
+    if (el.scrollTop < 80 && hasOlderMessages && !loadingOlder) {
+      loadOlderMessages();
+    }
   };
 
   const scrollToBottom = () => {
@@ -415,6 +461,18 @@ export default function ChatRoomPage() {
         }}
       >
         <div className="max-w-2xl mx-auto space-y-0.5">
+          {loadingOlder && (
+            <div className="flex justify-center py-3">
+              <div className="w-5 h-5 border-2 border-drac-purple border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          {!hasOlderMessages && messages.length > 0 && (
+            <div className="flex justify-center py-3">
+              <span className="text-[11px] text-drac-comment/60 bg-drac-current/50 px-3 py-1 rounded-full">
+                대화의 시작입니다
+              </span>
+            </div>
+          )}
           {messages.length === 0 && (
             <div className="flex justify-center items-center h-32 text-drac-comment text-sm">
               첫 메시지를 보내보세요.

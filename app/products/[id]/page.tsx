@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Heart, Share2, ShoppingCart, Star, Sparkles, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle, Plus } from "lucide-react";
+import { ArrowLeft, Heart, Share2, ShoppingCart, Sparkles, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle, Plus } from "lucide-react";
 import { useMemo } from "react";
 
 interface OptionInfo {
