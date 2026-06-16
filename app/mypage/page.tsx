@@ -25,6 +25,7 @@ import {
   Hash,
   ImageIcon,
   AlignLeft,
+  ReceiptText,
 } from "lucide-react";
 
 type Gender = "MALE" | "FEMALE" | "NONE";
@@ -523,6 +524,20 @@ export default function MyPage() {
                   </div>
                   <ChevronRight size={20} className="text-drac-comment group-hover:text-drac-pink transition-colors" />
                 </button>
+              </li>
+            )}
+
+            {!sellerRole && (
+              <li>
+                <Link href="/orders" className="flex items-center justify-between px-6 py-5 hover:bg-drac-current/40 transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-drac-current flex items-center justify-center text-drac-purple group-hover:text-drac-pink transition-colors">
+                      <ReceiptText size={20} />
+                    </div>
+                    <span className="font-semibold text-drac-fg text-[15px]">주문 내역</span>
+                  </div>
+                  <ChevronRight size={20} className="text-drac-comment group-hover:text-drac-pink transition-colors" />
+                </Link>
               </li>
             )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { apiFetch } from "@/app/lib/api";
@@ -17,7 +17,7 @@ interface ConfirmResponse {
   receiptUrl: string;
 }
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessContent() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -143,5 +143,18 @@ export default function PaymentSuccessPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-drac-bg flex flex-col items-center justify-center gap-4 text-drac-fg">
+        <Loader2 size={48} className="text-drac-pink animate-spin" />
+        <p className="font-semibold">결제 처리 중...</p>
+      </div>
+    }>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }
