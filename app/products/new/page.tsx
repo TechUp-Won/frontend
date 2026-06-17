@@ -1,7 +1,7 @@
 "use client";
 
 import ThemeToggle from "@/app/components/ThemeToggle";
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useRef, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -89,14 +89,24 @@ export default function NewProductPage() {
   const [submitting, setSubmitting] = useState(false);
   const [stepError, setStepError] = useState("");
 
+  // React Strict Mode(개발 모드)에서 effect가 두 번 실행되어
+  // alert/router.push가 중복 호출되는 것을 방지하는 가드
+  const authCheckRanRef = useRef(false);
+
   useEffect(() => {
+    if (authCheckRanRef.current) return;
+    authCheckRanRef.current = true;
+
     const storedUser = localStorage.getItem("userInfo");
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
         setUserInfo(parsed);
         const isSeller =
-          parsed.role === "SELLER" || parsed.role === "ROLE_SELLER";
+          parsed.role === "SELLER" ||
+          parsed.role === "ROLE_SELLER" ||
+          parsed.role === "USER_SELLER" ||
+          parsed.role === "ROLE_USER_SELLER";
         if (!isSeller) {
           alert("판매자만 상품 등록이 가능합니다.");
           router.push("/");

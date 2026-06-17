@@ -198,7 +198,7 @@ export default function Home() {
             <ThemeToggle />
             {userInfo ? (
               <div className="flex items-center gap-4">
-                {(userInfo.role === 'ROLE_SELLER' || userInfo.role === 'SELLER') && (
+                {(userInfo.role === 'ROLE_SELLER' || userInfo.role === 'SELLER' || userInfo.role === 'ROLE_USER_SELLER' || userInfo.role === 'USER_SELLER') && (
                   <Link href="/products/new" className="text-xs sm:text-sm font-bold px-3.5 py-2 bg-gradient-to-tr from-drac-pink to-drac-purple hover:from-drac-pink/85 hover:to-drac-purple/85 text-drac-bg rounded-xl transition-all shadow-md flex items-center gap-1.5 shrink-0 hover:scale-[1.03] active:scale-95">
                     <Plus size={16} />
                     <span>상품 등록</span>

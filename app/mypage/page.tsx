@@ -66,6 +66,14 @@ function isSeller(role?: string) {
   );
 }
 
+function isPureSeller(role?: string) {
+  return role === "ROLE_SELLER" || role === "SELLER";
+}
+
+function isUserSeller(role?: string) {
+  return role === "ROLE_USER_SELLER" || role === "USER_SELLER";
+}
+
 export default function MyPage() {
   const router = useRouter();
   const [userInfo, setUserInfo] = useState<{ profileName: string; role: string; email?: string } | null>(null);
@@ -74,6 +82,7 @@ export default function MyPage() {
   const [storeData, setStoreData] = useState<StoreResponse | null>(null);
   const [isAuthed, setIsAuthed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [viewMode, setViewMode] = useState<"USER" | "SELLER">("USER");
 
   // Seller registration modal
   const [isSellerModalOpen, setIsSellerModalOpen] = useState(false);
@@ -124,12 +133,14 @@ export default function MyPage() {
       }
     }
 
-    if (!isSeller(role)) {
+    // USER, USER_SELLER → 사용자 정보 조회 (순수 SELLER는 사용자 정보가 없음)
+    if (!isPureSeller(role)) {
       apiFetch("/api/v1/users")
         .then(async res => { if (res.ok) setUserData((await res.json()).data); })
         .catch(e => console.error(e));
     }
 
+    // SELLER, USER_SELLER → 판매자/스토어 정보 조회
     if (isSeller(role)) {
       apiFetch("/api/v1/sellers")
         .then(async res => { if (res.ok) setSellerData((await res.json()).data); })
@@ -138,6 +149,11 @@ export default function MyPage() {
       apiFetch("/api/v1/stores")
         .then(async res => { if (res.ok) setStoreData((await res.json()).data); else setStoreData(null); })
         .catch(() => setStoreData(null));
+    }
+
+    // 순수 SELLER는 항상 판매자 화면, USER_SELLER는 기본적으로 사용자 화면에서 시작해 선택 가능
+    if (isPureSeller(role)) {
+      setViewMode("SELLER");
     }
 
     setIsAuthed(true);
@@ -286,9 +302,15 @@ export default function MyPage() {
   };
 
   const handleWithdraw = async () => {
-    if (!confirm("정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
+    // USER_SELLER는 현재 보고 있는 마이페이지(사용자/판매자)에 해당하는 탈퇴 API를 호출
+    const confirmMessage = dualRole
+      ? sellerRole
+        ? "정말 판매자 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+        : "정말 사용자 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+      : "정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.";
+    if (!confirm(confirmMessage)) return;
     try {
-      const url = isSeller(userInfo?.role) ? "/api/v1/sellers/withdraw" : "/api/v1/users/withdraw";
+      const url = sellerRole ? "/api/v1/sellers/withdraw" : "/api/v1/users/withdraw";
       const res = await apiFetch(url, { method: "DELETE" });
       if (res.ok) {
         alert("회원 탈퇴가 완료되었습니다.");
@@ -366,7 +388,9 @@ export default function MyPage() {
     );
   }
 
-  const sellerRole = isSeller(userInfo?.role);
+  const rawRole = userInfo?.role;
+  const dualRole = isUserSeller(rawRole);
+  const sellerRole = isPureSeller(rawRole) || (dualRole && viewMode === "SELLER");
 
   return (
     <div className="min-h-screen bg-drac-bg text-drac-fg font-sans pb-32 flex flex-col">
@@ -435,6 +459,34 @@ export default function MyPage() {
             </div>
           )}
         </div>
+
+        {/* View Mode Toggle (USER_SELLER 전용: 사용자/판매자 마이페이지 선택) */}
+        {dualRole && (
+          <div className="flex items-center gap-1.5 p-1.5 bg-drac-current/40 border border-drac-comment/20 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setViewMode("USER")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${
+                viewMode === "USER"
+                  ? "bg-drac-bg text-drac-purple shadow-sm"
+                  : "text-drac-comment hover:text-drac-fg"
+              }`}
+            >
+              <User size={16} /> 사용자 마이페이지
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("SELLER")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${
+                viewMode === "SELLER"
+                  ? "bg-drac-bg text-drac-yellow shadow-sm"
+                  : "text-drac-comment hover:text-drac-fg"
+              }`}
+            >
+              <Store size={16} /> 판매자 마이페이지
+            </button>
+          </div>
+        )}
 
         {/* Seller Info Card (판매자 전용) */}
         {sellerRole && sellerData && (
@@ -555,7 +607,7 @@ export default function MyPage() {
               </li>
             )}
 
-            {!sellerRole && (
+            {!isSeller(rawRole) && (
               <li>
                 <button onClick={() => setIsSellerModalOpen(true)} className="w-full flex items-center justify-between px-6 py-5 hover:bg-drac-current/40 transition-colors group">
                   <div className="flex items-center gap-4">
