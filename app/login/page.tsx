@@ -135,7 +135,7 @@ export default function LoginPage() {
             <p className="text-center text-xs font-semibold text-drac-comment tracking-wider mb-4">소셜 계정으로 로그인</p>
             <div className="flex flex-col gap-3">
               <a
-                href="http://localhost:8080/oauth2/authorization/google"
+                href="http://api.hjo-api-server.shop/oauth2/authorization/google"
                 className="w-full py-3.5 flex items-center justify-center gap-3 rounded-2xl border border-drac-comment bg-drac-current hover:border-drac-pink hover:bg-drac-bg transition-all font-bold text-sm text-drac-fg"
               >
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -147,7 +147,7 @@ export default function LoginPage() {
                 Google로 계속하기
               </a>
               <a
-                href="http://localhost:8080/oauth2/authorization/naver"
+                href="http://api.hjo-api-server.shop/oauth2/authorization/naver"
                 className="w-full py-3.5 flex items-center justify-center gap-3 rounded-2xl border border-drac-comment bg-drac-current hover:border-drac-pink hover:bg-drac-bg transition-all font-bold text-sm text-drac-fg"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
