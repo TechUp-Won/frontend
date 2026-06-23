@@ -228,7 +228,7 @@ export default function ChatRoomPage() {
     if (!token || !roomId) return;
 
     const client = new Client({
-      brokerURL: "ws://localhost:8080/ws",
+      brokerURL: "ws://api.hjo-api-server.shop/ws",
       connectHeaders: { Authorization: `Bearer ${token}` },
       reconnectDelay: 5000,
       onConnect: () => {
