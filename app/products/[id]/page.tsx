@@ -36,7 +36,6 @@ interface ProductDetail {
   discountRate: number;
   status: string;
   likeCount: number;
-  isLiked: boolean;
   store: { storeId: number; storeName: string } | null;
   images: { url: string; sortOrder: number }[];
   detail: { content: string } | null;
@@ -422,9 +421,6 @@ export default function ProductDetailPage() {
                   {product.store?.storeName || '스토어 이름'}
                 </Link>
                 <div className="flex gap-3">
-                  <button className="w-10 h-10 rounded-full bg-drac-bg flex items-center justify-center hover:bg-drac-current hover:text-red-500 text-drac-comment transition-colors group">
-                    <Heart size={20} className={product.isLiked ? "fill-red-500 text-red-500" : "group-hover:fill-red-500"} />
-                  </button>
                   <button className="w-10 h-10 rounded-full bg-drac-bg flex items-center justify-center hover:bg-drac-current hover:text-drac-pink text-drac-comment transition-colors">
                     <Share2 size={20} />
                   </button>
