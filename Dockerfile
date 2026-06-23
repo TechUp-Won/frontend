@@ -1,7 +1,7 @@
 FROM oven/bun:1 AS builder
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install
 COPY . .
 ARG BACKEND_URL=http://localhost:8080
 ENV BACKEND_URL=$BACKEND_URL
